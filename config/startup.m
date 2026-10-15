@@ -1,0 +1,61 @@
+% ==============================================================================
+% startup.m
+% Initializes the LKA Project environment, paths, and baseline workspace.
+% Follows MathWorks Automotive Advisory Board (MAAB) & Simulink Project practices.
+% ==============================================================================
+
+fprintf('\n[LKA System] Initializing environment...\n');
+
+% 1. Determine project root directory
+projectRoot = fileparts(fileparts(mfilename('fullpath')));
+
+% 2. Add required directories to MATLAB path
+pathsToAdd = {
+    fullfile(projectRoot, 'config');
+    fullfile(projectRoot, 'data');
+    fullfile(projectRoot, 'data', 'bus_definitions');
+    fullfile(projectRoot, 'data', 'parameters');
+    fullfile(projectRoot, 'data', 'scenarios');
+    fullfile(projectRoot, 'models');
+    fullfile(projectRoot, 'src');
+    fullfile(projectRoot, 'src', 'controllers');
+    fullfile(projectRoot, 'src', 'perception');
+    fullfile(projectRoot, 'src', 'utilities');
+    fullfile(projectRoot, 'scripts');
+    fullfile(projectRoot, 'tests');
+    fullfile(projectRoot, 'tests', 'unit_tests');
+    fullfile(projectRoot, 'tests', 'scenario_tests');
+};
+
+for i = 1:numel(pathsToAdd)
+    if exist(pathsToAdd{i}, 'dir')
+        addpath(pathsToAdd{i});
+    end
+end
+
+% 3. Configure Simulink cache and code generation directory to 'work/'
+cacheFolder = fullfile(projectRoot, 'work');
+if ~exist(cacheFolder, 'dir')
+    mkdir(cacheFolder);
+end
+
+try
+    Simulink.fileGenControl('set', ...
+        'CacheFolder', cacheFolder, ...
+        'CodeGenFolder', cacheFolder);
+catch ME
+    warning('[LKA System] Could not set Simulink.fileGenControl: %s', ME.message);
+end
+
+% 4. Load baseline parameters and bus objects into base workspace
+try
+    evalin('base', 'vehicle_params;');
+    evalin('base', 'lka_controller_params;');
+    evalin('base', 'sensor_params;');
+    evalin('base', 'create_lka_buses;');
+    fprintf('[LKA System] Baseline vehicle, controller, and bus parameters loaded successfully.\n');
+catch ME
+    warning('[LKA System] Parameter loading warning: %s', ME.message);
+end
+
+fprintf('[LKA System] Ready. You can now execute scripts/run_baseline_simulation.m\n\n');

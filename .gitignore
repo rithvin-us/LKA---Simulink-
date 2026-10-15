@@ -1,0 +1,41 @@
+# ==============================================================================
+# MATLAB and Simulink Git Ignore Rules
+# Designed for Automotive / SAE Competition Projects (MAAB Compliant)
+# ==============================================================================
+
+# MATLAB autosave and backup files
+*.asv
+*.autosave
+*.m~
+*.slx~
+*.mdl~
+*.tmp
+*.bak
+
+# Simulink cache, code generation, and build artifacts
+work/
+slprj/
+*.slxc
+*.mex*
+*.mexw64
+*.mexmaci64
+*.mexa64
+
+# Project desktop, user preferences, and cache
+.SimulinkProject/
+*.prj.user
+*.matlab/
+matlab.log
+*.vbl
+*.tfl
+
+# Large simulation output logs and diagnostic runs
+simulation_results/
+simulation_logs/
+*.csv.tmp
+*.mat.tmp
+
+# OS generated files
+.DS_Store
+Thumbs.db
+[Dd]esktop.ini
