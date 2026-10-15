@@ -267,6 +267,81 @@ section 6.
 That port is the steering source in LKA mode (Mode = 1) and Endurance mode
 (Mode = 2). All other modes behave exactly as before.
 
-## 6. Results summary
+## 6. Results summary (MIL, Baja profile, 2026-10-16)
 
-(filled in by the MIL run — see below)
+Columns:
+- **max |e|:** largest lateral offset of the CG from the lane centre.
+- **min margin:** smallest distance from any tyre's outer edge to the inner edge of the line.
+- **in lane:** share of time with all four tyres inside the lane lines.
+- **jerk:** maximum 0.5 s moving-average lateral jerk.
+
+| Scenario | Controller | max \|e\| [m] | RMS [m] | min margin [m] | in lane | max a_y [m/s²] | jerk [m/s³] |
+|---|---|---|---|---|---|---|---|
+| S1 official track, 30 km/h | **Pure Pursuit** | **0.098** | 0.023 | 0.83 | 100 % | 1.17 | 2.70 |
+| | MPC | 0.101 | 0.025 | 0.83 | 100 % | 1.09 | 2.54 |
+| | Stanley 2025 | 1.348 | 0.515 | −0.43 | 95.6 % | 2.99 | 5.00 |
+| S2 official track, 33 km/h | **Pure Pursuit** | **0.154** | 0.030 | 0.77 | 100 % | 1.68 | 3.57 |
+| | MPC | 0.158 | 0.033 | 0.77 | 100 % | 1.57 | 3.34 |
+| | Stanley 2025 | 1.395 | 0.652 | −0.47 | 78.1 % | 2.99 | 5.00 |
+| S3 tight R 50/60/85 m | **Pure Pursuit** | **0.393** | 0.101 | 0.53 | 100 % | 2.94 | 4.90 |
+| | MPC | 0.315 | 0.099 | 0.60 | 100 % | 2.65 | 4.42 |
+| | Stanley 2025 | 2.114 | 0.882 | −1.20 | 73.0 % | 2.99 | 5.00 |
+| S4 degraded detector¹ | **Pure Pursuit** | **0.133** | 0.052 | 0.80 | 100 % | 1.18 | 2.99 |
+| | MPC | 0.152 | 0.056 | 0.78 | 100 % | 1.10 | 2.66 |
+| | Stanley 2025 | 0.430 | 0.139 | 0.49 | 100 % | 2.35 | 4.95 |
+| S5 0.8 m / 4° initial offset | **Pure Pursuit** | **0.873** | 0.117 | 0.02 | 100 % | 2.45 | 4.86 |
+| | MPC | 0.900 | 0.140 | 0.001 | 100 % | 1.65 | 3.36 |
+| | Stanley 2025 | 1.171 | 0.532 | −0.26 | 95.6 % | 2.99 | 5.00 |
+
+¹ S4 contains a deliberate 1.5 s loss of both lines. The supervisor correctly
+goes ACTIVE → DEGRADED (after 0.25 s) → TAKEOVER (after 1.0 s) → STANDBY → ACTIVE,
+which is exactly one take-over request. The 0.6 s outage of both lines in a curve
+and the 3 s loss of the left line are bridged without leaving ACTIVE/DEGRADED.
+
+**About the 2025 baseline.** Inside the same safety envelope as the new
+controllers (3 m/s² lateral acceleration, 5 m/s³ jerk), the 2025 Stanley law
+falls into a limit cycle: the jerk-rate limit adds phase lag the law was not
+designed for. Without the envelope, as it ran in 2025, it stays in the lane on
+S1 but still has 0.33 m maximum and 0.13 m RMS error, about 3× worse than pure
+pursuit, and it exceeds the jerk limit (5.46 m/s³).
+
+**Turning radius.** On the official track the commanded turning radius follows
+the road radius (R 257 m and R 127 m arcs). Its minimum magnitude is 54 m
+(pure pursuit, S1), reached at the curve reversals where the controller
+anticipates the next arc. On the straights the output alternates around ±1000 m
+(straight ahead) with the detector noise.
+
+### Diagrams
+
+| | |
+|---|---|
+| LKA_Controller (top level) | ![](images/LKA_Controller.png) |
+| Lane Perception | ![](images/LKA_Controller_Lane_Perception.png) |
+| Supervisor state machine | ![](images/LKA_Controller_LKA_Supervisor_LKA_Mode_Logic.png) |
+| Lateral controllers | ![](images/LKA_Controller_Lateral_Controllers.png) |
+| Pure pursuit | ![](images/LKA_Controller_Lateral_Controllers_Pure_Pursuit.png) |
+| MPC | ![](images/LKA_Controller_Lateral_Controllers_MPC_Lane_Keeping.png) |
+| Curvature limiter | ![](images/LKA_Controller_Curvature_Limiter.png) |
+| Steering actuator manager | ![](images/LKA_Controller_Steering_Actuator_Manager.png) |
+| Emulated lane detector | ![](images/VirtualLaneSensor.png) |
+| MIL test bench | ![](images/LKA_MIL_TestBench.png) |
+| Integration in aBaja2026.slx | ![](images/aBaja2026_LKA_Lane_Keeping_Assist_.png) |
+
+## 7. Known limitations and next steps
+
+1. **RoadRunner co-simulation has not been run.** RoadRunner is not installed,
+   and `aBaja2026.slx`'s `InitFcn` needs a live `rrSim`. The integration
+   compiles cleanly with a substituted start pose. The first co-simulation run
+   should check the sign of the skeleton pose and yaw (`LKA.Cosim.YawOffsetDeg`)
+   and that the route runs along the lane centre.
+2. **The lane detector is emulated.** Next, port the Asterix sliding-window
+   detector to MATLAB on the skeleton's Simulation 3D Camera (1280×720,
+   f = 1109 px) and fill `LaneSensorBus`. Nothing downstream changes.
+3. **The emulated detector reports curvature at the vehicle position only.** It
+   gives no preview of curves still ahead in the camera view. A real
+   polynomial-fit detector would add preview, which helps pure pursuit and MPC
+   at curve entries.
+4. **The Baja parameters need confirming.** `vehicle_params.m` (L = 1.45 m,
+   240 kg) differs from the 2025 CarMaker Baja (L = 1.341 m, about 347 kg).
+5. **The MPC's QP solve is slower to simulate** than pure pursuit. A
+   referenced-model rebuild takes about 60 s; after that, runs are fast.

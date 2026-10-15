@@ -338,23 +338,26 @@ function makeModeChart(path)
     t = Stateflow.Transition(sOn); t.Destination = sStb; t.DestinationOClock = 0;
     t.SourceEndpoint = [370 55]; t.MidPoint = [370 68];
 
-    tr(ch, sOff, sOn, '[enable]', [220 165]);
-    tr(ch, sOn, sOff, '[~enable]', [220 215]);
-    tr(sOn, sStb, sAct, '[speedOk && laneOk]', [535 100]);
-    tr(sOn, sAct, sStb, '[~speedOk]', [535 150]);
-    tr(sOn, sAct, sDeg, '[~laneOk]', [680 215]);
-    tr(sOn, sDeg, sAct, '[laneOk]', [730 215]);
-    tr(sOn, sDeg, sStb, '[~speedOk]', [535 225]);
-    tr(sOn, sDeg, sTor, '[coastExceeded]', [535 315]);
-    tr(sOn, sTor, sStb, sprintf('after(%g,sec)[laneOk]', torHold), [370 215]);
+    % Attachment points as clock positions on the state boxes: antiparallel pairs run
+    % as separate straight arrows and every transition stays inside ON.
+    tr(ch, sOff, sOn, '[enable]', 1.5, 10.0);
+    tr(ch, sOn, sOff, '[~enable]', 8.0, 4.5);
+    tr(sOn, sStb, sAct, '[speedOk && laneOk]', 2.5, 9.5);
+    tr(sOn, sAct, sStb, '[~speedOk]', 8.5, 3.5);
+    tr(sOn, sAct, sDeg, '[~laneOk]', 5.0, 1.0);
+    tr(sOn, sDeg, sAct, '[laneOk]', 11.0, 7.0);
+    tr(sOn, sDeg, sStb, '[~speedOk]', 10.0, 4.5);
+    tr(sOn, sDeg, sTor, '[coastExceeded]', 9.0, 3.0);
+    tr(sOn, sTor, sStb, sprintf('after(%g,sec)[laneOk]', torHold), 12.0, 6.0);
 end
 
-function t = tr(parent, src, dst, label, mid)
+function t = tr(parent, src, dst, label, srcClock, dstClock)
     t = Stateflow.Transition(parent);
     t.Source = src;
     t.Destination = dst;
+    t.SourceOClock = srcClock;
+    t.DestinationOClock = dstClock;
     t.LabelString = label;
-    t.MidPoint = mid;
 end
 
 function buildLdw(s)
