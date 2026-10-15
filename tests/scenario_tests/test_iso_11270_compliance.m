@@ -11,6 +11,8 @@ function testConstantRadiusCurve(testCase)
     % Initialize environment
     projectRoot = fileparts(fileparts(fileparts(mfilename('fullpath'))));
     run(fullfile(projectRoot, 'config', 'startup.m'));
+    vehicle = evalin('base', 'vehicle');
+    controller = evalin('base', 'controller');
 
     scenarios = generate_test_scenarios();
     track = scenarios.constant_curve;

@@ -21,6 +21,8 @@ pathsToAdd = {
     fullfile(projectRoot, 'src', 'controllers');
     fullfile(projectRoot, 'src', 'perception');
     fullfile(projectRoot, 'src', 'utilities');
+    fullfile(projectRoot, 'src', 'plant');
+    fullfile(projectRoot, 'src', 'evaluation');
     fullfile(projectRoot, 'scripts');
     fullfile(projectRoot, 'tests');
     fullfile(projectRoot, 'tests', 'unit_tests');
@@ -50,12 +52,12 @@ end
 % 4. Load baseline parameters and bus objects into base workspace
 try
     evalin('base', 'vehicle_params;');
-    evalin('base', 'lka_controller_params;');
     evalin('base', 'sensor_params;');
+    evalin('base', 'lka_controller_params;');
     evalin('base', 'create_lka_buses;');
     fprintf('[LKA System] Baseline vehicle, controller, and bus parameters loaded successfully.\n');
 catch ME
     warning('[LKA System] Parameter loading warning: %s', ME.message);
 end
 
-fprintf('[LKA System] Ready. You can now execute scripts/run_baseline_simulation.m\n\n');
+fprintf('[LKA System] Ready. Run scripts/run_lka_mil.m (Simulink LKA test bench) or scripts/run_baseline_simulation.m\n\n');

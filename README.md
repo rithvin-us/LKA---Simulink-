@@ -9,21 +9,32 @@ The repository follows **MathWorks Automotive Advisory Board (MAAB)** guidelines
 
 ## 1. Quickstart
 
-1. Launch MATLAB (R2022b or later recommended).
+1. Launch MATLAB **R2026a** (the models are saved in R2026a; the competition skeleton needs R2025b or newer).
 2. Set your MATLAB working directory to the root of this repository (`LKA - Matlab/`).
-3. Run the startup script in the MATLAB Command Window:
+3. Initialise paths, parameters and bus objects:
    ```matlab
    run('config/startup.m')
    ```
-   *This automatically registers all subfolders to the MATLAB path, sets `work/` as the Simulink cache directory, and loads vehicle, controller, and sensor parameters into the base workspace.*
-4. Run the baseline simulation and view performance KPIs:
+4. Run the LKA MIL test bench: 5 scenarios × 3 controllers. Figures and the KPI table are written to `results/mil/`:
    ```matlab
-   run('scripts/run_baseline_simulation.m')
+   results = run_lka_mil();                                   % everything (~15 min)
+   results = run_lka_mil(Scenarios={'S1_Nominal'}, Controllers=1);   % one run
    ```
-5. When finished, clean up the workspace and paths:
+5. Run the tests:
+   ```matlab
+   runtests('tests')
+   ```
+6. Put the LKA into the competition model for RoadRunner co-simulation (see `docs/lka_controller.md` §5):
+   ```matlab
+   integrate_lka_into_skeleton()
+   ```
+7. When finished:
    ```matlab
    run('config/shutdown.m')
    ```
+
+How the LKA works (lane perception, supervisor, pure pursuit / Stanley 2025 / MPC,
+limits, turning radius): **[`docs/lka_controller.md`](docs/lka_controller.md)**.
 
 ---
 
@@ -31,52 +42,31 @@ The repository follows **MathWorks Automotive Advisory Board (MAAB)** guidelines
 
 ```plaintext
 LKA - Matlab/
-├── .gitignore                      # Tailored ignore rules for MATLAB & Simulink
-├── README.md                       # Main project documentation (this file)
-│
-├── config/                         # Environment & lifecycle configuration
-│   ├── startup.m                   # Adds paths, sets cache folders, loads parameters
-│   └── shutdown.m                  # Clears paths, closes models, cleans up cache
-│
-├── data/                           # Inputs, calibration parameters, and buses
-│   ├── bus_definitions/            # Simulink Bus object definitions
-│   │   └── create_lka_buses.m
-│   ├── parameters/                 # Physical parameters & controller gains
-│   │   ├── vehicle_params.m        # Vehicle inertia, mass, geometry, tire stiffness
-│   │   ├── lka_controller_params.m # Stanley/MPC gains, saturation limits
-│   │   └── sensor_params.m         # Camera field-of-view, latency, noise
-│   └── scenarios/                  # Test track geometry (.mat / generators)
-│       └── generate_test_scenarios.m
-│
-├── models/                         # Simulink models & component libraries
-│   └── README.md                   # Modeling architecture & model referencing guide
-│
-├── src/                            # MATLAB algorithmic source code
-│   ├── controllers/                # Steering control laws (Stanley, Pure Pursuit)
-│   │   ├── stanley_steer_control.m
-│   │   └── pure_pursuit_steer.m
-│   ├── perception/                 # Lateral error & heading angle computation
-│   │   └── compute_lateral_error.m
-│   └── utilities/                  # Lowpass filters and rate limiters
-│       └── lowpass_steer_filter.m
-│
-├── scripts/                        # Automation & analysis workflows
-│   ├── run_baseline_simulation.m   # Standalone runner and visualization
-│   └── evaluate_kpis.m             # Computes ISO 11270 pass/fail performance KPIs
-│
-├── tests/                          # Verification and Validation (V&V)
-│   ├── unit_tests/                 # MATLAB unit test suites
-│   │   └── test_stanley_controller.m
-│   └── scenario_tests/             # Track compliance test suites
-│       └── test_iso_11270_compliance.m
-│
-├── docs/                           # Engineering reports, standards, and sources
-│   ├── mathematical_models.md      # Mathematical derivation of vehicle dynamics & control
-│   └── references/                 # Academic and regulatory citations
-│       ├── references.bib          # BibTeX citations
-│       └── iso_11270_lka_compliance.md # ISO 11270 requirements summary
-│
-└── work/                           # Simulink cache folder (ignored by git)
+├── config/              startup.m (paths, params, buses), shutdown.m
+├── data/
+│   ├── bus_definitions/ create_lka_buses.m        LaneSensorBus, LaneEstimateBus, LkaInfoBus (+ legacy buses)
+│   ├── parameters/      vehicle_params.m          Baja mass, geometry, tyres, steering 32 deg / 60 deg/s / 0.1 s
+│   │                    sensor_params.m           emulated detector: 20 Hz, 50 ms, noise, dropouts
+│   │                    lka_controller_params.m   builds LKA (lka_build_params.m) + legacy `controller`
+│   └── scenarios/       generate_lka_scenarios.m  S1..S5 MIL scenarios; tracks/LKA_IPG.xodr (official track)
+│                        generate_test_scenarios.m legacy script scenarios
+├── models/              (generated by scripts/build_lka_models.m)
+│   ├── LKA_Controller.slx       complete LKA (referenced model)
+│   ├── VirtualLaneSensor.slx    emulated lane detector (subsystem reference)
+│   └── LKA_MIL_TestBench.slx    closed-loop Baja test bench
+├── src/
+│   ├── perception/      lane geometry, boundary validation, centre fusion, Kalman tracker, LDW
+│   ├── controllers/     pure pursuit, Stanley 2025 port, curvature MPC, steering geometry, limits
+│   │                    (+ legacy script controllers stanley_steer_control.m, pure_pursuit_steer.m)
+│   ├── plant/           nonlinear single-track Baja model
+│   ├── evaluation/      result extraction, KPIs, ground-truth wheel-in-lane metrics
+│   └── utilities/       parameter builder, OpenDRIVE reader, road lookup
+├── scripts/             build_lka_models, run_lka_mil, plot_lka_results, plot_lka_comparison,
+│                        integrate_lka_into_skeleton, run_baseline_simulation (legacy), evaluate_kpis (legacy)
+├── tests/               unit_tests/test_lka_core.m, scenario_tests/test_lka_mil_scenarios.m (+ legacy tests)
+├── docs/                lka_controller.md (design), mathematical_models.md, references/
+├── results/mil/         figures and lka_mil_kpis.csv from run_lka_mil
+└── SoftwareVirtualWorldSimulation-master/   aBaja 2026 competition skeleton (aBaja2026.slx + RoadRunner co-sim)
 ```
 
 ---

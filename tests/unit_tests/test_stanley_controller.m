@@ -7,6 +7,11 @@ function tests = test_stanley_controller
     tests = functiontests(localfunctions);
 end
 
+function setupOnce(~)
+    projectRoot = fileparts(fileparts(fileparts(mfilename('fullpath'))));
+    run(fullfile(projectRoot, 'config', 'startup.m'));
+end
+
 function testZeroErrorHeadingStraight(testCase)
     % When vehicle is on path and aligned, commanded steer should be 0
     vehState = struct('X', 0, 'Y', 0, 'yawAngle', 0, 'Vx', 8.0, 'yawRate', 0);

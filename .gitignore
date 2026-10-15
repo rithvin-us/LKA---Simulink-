@@ -39,3 +39,6 @@ simulation_logs/
 .DS_Store
 Thumbs.db
 [Dd]esktop.ini
+
+# LKA MIL run artefacts (figures and KPI csv are kept)
+results/**/*.mat
