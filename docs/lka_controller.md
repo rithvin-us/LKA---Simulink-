@@ -338,10 +338,10 @@ anticipates the next arc. On the straights the output alternates around ±1000 m
    should check the sign of the skeleton pose and yaw (`LKA.Cosim.YawOffsetDeg`)
    and that the route runs along the lane centre.
 2. **Camera lane detection is in place** (section 8). The team UFLDv2 and YOLOP run
-   through Python onnxruntime on the CPU (about 58 ms per frame); the ONNX importer add-on
-   would move them to the GPU. YOLOP does not detect the rendered lines (sim-vs-real
-   domain gap). The skeleton camera extrinsics (hood centre) are checked in the
-   RoadRunner run.
+   on the GPU through the ONNX importer add-on (about 32 / 38 ms per frame; Python
+   onnxruntime on the CPU stays as the fallback). YOLOP detects the rendered left line in
+   only 31 % of the frames (BDD100K model, sim-vs-real gap) but completes the closed loop.
+   The skeleton camera extrinsics (hood centre) are checked in the RoadRunner run.
 3. **The emulated detector reports curvature at the vehicle position only.** It
    gives no preview of curves still ahead in the camera view. A real
    polynomial-fit detector would add preview, which helps pure pursuit and MPC
@@ -401,11 +401,33 @@ S1, 0 → 30 km/h, pure pursuit, classic detector):
 **Detector benchmark and closed loop** (241 recorded official-track frames, then one closed-loop
 S1 run per detector; `run_detector_benchmark`):
 
-| Detector | Back end | Lines found L / R | Boundary error at 5 / 10 m | Heading error | Time | Closed loop: max offset / in lane |
-|---|---|---|---|---|---|---|
-| team CNN (UFLDv2, fit to 18 m) | onnxruntime CPU | 99.6 % / 99.6 % | 4.4 / 6.3 cm | 1.05° | 58 ms | **0.039 m / 100 %** |
-| classic | MATLAB | 99.6 % / 99.6 % | 5.2 / 7.1 cm | 0.88° | 17 ms | 0.079 m / 100 % |
-| YOLOP (2025) | onnxruntime CPU | 4 % / 51 % | - | - | 58 ms | car leaves the road |
+| Detector | Back end | Lines found L / R | Boundary error at 10 m | Detector time | Closed loop: max / RMS offset, in lane |
+|---|---|---|---|---|---|
+| team CNN (UFLDv2, fit to 18 m, ego-lane pages) | importer, GPU | 99.6 % / 99.6 % | 6.3 cm | 32 ms | **0.037 m / 0.013 m, 100 %** |
+| classic | MATLAB, CPU | 99.6 % / 99.6 % | 7.1 cm | 19 ms | 0.090 m / 0.045 m, 100 % |
+| YOLOP (2025, RGB input, fit to 15 m) | importer, GPU | 31 % / 90 % | 9.4 cm | 38 ms | 0.166 m / 0.052 m, 100 % |
+
+(Run 2026-10-16 after the GPU pipeline. The classic run moved from 0.079 to 0.090 m when the
+bird's-eye warp changed from `transformImage` to `lka_bev_warp`: both give the same map to
+1e-7, but the closed loop amplifies such differences over 60 s; RMS 0.043 → 0.045 m.)
+
+**YOLOP input bug (ADAS_2026).** YOLOP was trained on RGB (its `AutoDriveDataset` converts
+BGR to RGB), but YOLOP's `demo.py`, and the ADAS_2026 port taken from it, feed BGR. With
+BGR the lane head stayed at its 0.41 floor on the rendered road: left line found in 4 % of the
+frames, and the car left the road. `models/perception/yolop.json` now says `RGB`
+(`test_vision_assets` guards it).
+
+**Team CNN = Colab.** `tools/ufld_reference.py` runs the team model exactly as the Colab /
+`demo.py` (PIL + torchvision transforms, onnxruntime, original `pred2coords`).
+`test_ufld_reference_parity` compares it with MATLAB on college-track and synthetic frames:
+same lane slots, lane points within 0.06 px. The accuracy measured in Colab (TuSimple
+test set) therefore holds in MATLAB for the same kind of images; a different road (rendered
+track, college snake lane) is a different domain, not a MATLAB difference.
+
+**Ego-lane pages.** UFLDv2 orders its four lane slots left to right (slot 2 = ego-left,
+slot 3 = ego-right). `lka_detector_ufld` returns one probability page per ego line and the lane
+search reads only its own page, so a kerb or the next lane (slots 1 and 4) cannot be taken
+for an ego line. A page falls back to all lanes when its slot is empty.
 
 The ground truth is the OpenDRIVE lane border. On this track the paint sits off it: the edge
 line is about 0.13 m outside, and the inner stripe of the double centre line about 0.15 m
@@ -419,14 +441,108 @@ the wrong way: heading error σ 10°, and curvature anti-correlated with the tru
 `models/perception/cnn.json`) brings it to σ 1.8°, the same level as the classic detector.
 
 **Frame rate.** Camera, detector and controller run at a fixed 20 Hz (one frame of latency
-modelled, compensated by the Kalman filter). Per-frame processing on the RTX 4050 laptop
-(`measure_lka_timing`):
-- classic chain: 28 ms (real time);
-- CNN chain on CPU: 68 ms. A simulation runs correctly but slower than real time; GPU
-  inference is needed for real time.
+modelled, compensated by the Kalman filter). Per-frame processing on the RTX 4050 laptop,
+1280x720 camera (`measure_lka_timing`, median):
 
+| Stage | Time |
+|---|---|
+| team CNN on the GPU (resize, network, decode, raster) | 32 ms |
+| YOLOP on the GPU | 38 ms |
+| classic detector (CPU) | 19 ms |
+| bird's-eye warp (`lka_bev_warp`) | 2 ms |
+| lane search + robust fit | 5-12 ms |
+| annotated video (recorder only) | 34 ms |
+
+The CNN chain is about 40 ms, inside the 50 ms frame budget (was 68 ms on the CPU). In the
+Unreal closed loop, which shares the GPU with the renderer, it measures 41-49 ms per frame.
 The MIL bench (no camera) runs 1.4x faster than real time.
+
+**GPU use.** The networks are imported once (`lka_import_onnx_detector`, cached as
+`models/perception/*_dlnetwork.mat`) and optimised: HardSwish chains fused into one layer each
+(YOLOP 303 → 156 layers, identical output), the UFLDv2 batch-size check removed so recorded
+videos run 8 frames per network call. Weights stay on the GPU, `predict` uses
+`Acceleration="auto"`, resizes are two cached matrix products on the GPU
+(`lka_resize_pages`: 1 ms instead of 11 ms for `imresize` on a gpuArray), and the bird's-eye
+warp and the visual odometry run batched on the GPU. Further gains need GPU Coder with the
+CUDA Toolkit, cuDNN and TensorRT (not installed); the NVIDIA "Prefer maximum performance"
+power mode avoids the clock ramp-up between frames on a laptop.
+
+**GPU memory.** Unreal and the network share the 6 GB of the RTX 4050. With little free
+memory Unreal stops at start-up with "3D Simulation engine was terminated by the user
+(error code: 4)". `run_lka_vision` warns below 2.5 GB free; clear old detectors and run
+`reset(gpuDevice)`.
 
 **Known model limitation.** A single polynomial fitted across a straight-to-arc transition
 biases the extrapolated heading at the rear axle (about −1.3° with an arc 22 m ahead). The
 near-range geometry that pure pursuit uses stays accurate, as the closed-loop result above shows.
+
+## 9. Recorded track videos (`run_lka_on_video`)
+
+Runs the same camera chain and the unchanged `LKA_Controller` on a video, for example the
+organisers' track video or a phone recording of the college track:
+
+```matlab
+run_lka_on_test_videos                       % every vids/*.mp4 -> test_res/<name>/ + summary.csv
+run_lka_on_video('vids/clip.mp4', Detector='cnn', Camera='auto', HFovDeg=70, CameraHeight=1.2)
+```
+
+1. **Camera.** With `Camera='auto'` the intrinsics come from the field of view (phone main
+   camera about 70°), the pitch from lane-line parallelism (`lka_autocalibrate_camera`). One
+   scale is needed: the lens height (`CameraHeight`, default 1.2 m) or the lane width
+   (`LaneWidth`). A single camera cannot tell a narrow lane seen from low down from a wide
+   lane seen from high up.
+2. **Pass 1 (GPU, 8 frames per call):** detection, bird's-eye warp, lane search and fit,
+   visual odometry (FFT correlation of the road texture between frames: speed and yaw rate).
+3. **Controller replay** (`lka_replay_controller`): `LKA_Controller` runs open loop on the
+   lane estimates: steering, turning radius and LKA state are what the LKA *would* command.
+   The car in the video does not react.
+4. **Outputs** in `test_res/<name>/`: `lka_video_annotated.mp4` (ego lane, raw CNN lane points,
+   lane centre, commanded path, HUD, steering bar, bird's-eye inset), `lka_video_overview.png`
+   (lane position, heading, radius, steering, speed, yaw), `lka_video_path.png` (dead-reckoned
+   path with the detected lines), `lka_video_results.csv` (one row per frame, with time per
+   stage), and `test_res/summary.csv`.
+
+College-track clips (2026-10-16, team CNN, GPU, about 30 ms per frame):
+
+| Clip | Lane width | Both lines | LKA active | Distance | Max speed |
+|---|---|---|---|---|---|
+| 12.23.27 | 2.07 m | 91 % | 96 % | 50 m | 16 km/h |
+| 12.23.27 (1) | 1.90 m | 90 % | 85 % | 58 m | 18 km/h |
+| 12.23.28 | 2.09 m | 60 % | 94 % | 63 m | 19 km/h |
+
+**Limits.**
+- Speed and yaw from visual odometry are estimates: about ±20 % on these low-resolution
+  (832x464) clips, because a camera-pitch error scales far distances. A GPS or wheel-speed log
+  (`SpeedLog`) or a measured camera height and field of view remove most of it.
+- On clip 12.23.28 the painted snake lane is narrower than the road. The CNN, trained on
+  TuSimple highways, often labels the road edges as the ego lane there, and the driver also
+  cuts across the painted lines. Fine-tuning the team model on about 200 labelled frames of
+  the college track is the real fix.
+
+## 10. Live dashboard
+
+```matlab
+start_lka_dashboard        % http://127.0.0.1:8050, opens the browser
+```
+
+`tools/lka_dashboard.py` (Python standard library, 127.0.0.1 only) shows the running job:
+the video tool or the Unreal bench, published by `lka_monitor_publish` into
+`results/monitor/`. The page shows:
+- the annotated camera frame and the progress;
+- the LKA state, speed, steering, turning radius, lane centre and heading;
+- the time per pipeline stage;
+- charts of steering, lane lines, speed and timing;
+- the GPU from `nvidia-smi`: load, memory, temperature, power and clock;
+- the finished results (`test_res/summary.csv`, `results/vision/lka_vision_kpis.csv`), with the
+  annotated videos and graphs in a viewer.
+
+Telemetry is throttled (JSON every 0.2 s, frame every 0.4 s) and can be switched off with
+`Monitor=false` (`run_lka_on_video`, `run_lka_vision`) or `LKA.Vision.Monitor = false`.
+
+## 11. Legacy Stanley path (`stanley_steer_control`, ISO 11270 test)
+
+The scaffold's Stanley law damped the absolute yaw rate (`-k_yaw*r`). In a steady R 50 m bend
+at 30 km/h that is about 10° of steering out of the bend, which the cross-track term could
+only cancel with about 1.5 m of offset, failing `test_iso_11270_compliance` (limit 0.35 m).
+With the path curvature it now damps `r - v*kappa` and feeds `atan(L*kappa)` forward
+(Hoffmann et al., 2007); the ISO test passes. Without curvature the law is unchanged.

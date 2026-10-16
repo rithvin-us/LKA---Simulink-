@@ -20,7 +20,7 @@ nav{background:var(--card);border:1px solid var(--line);border-radius:10px;paddi
 <body><main>
 <h1>aBaja 2026 Lane Keeping Assist: team guide</h1>
 <p class="lead">What the LKA does, how fast it runs, and how to run it in MATLAB/Simulink, written for team members new to MATLAB.</p>
-<nav><a href="#what">What it does</a><a href="#rate">Frame rate</a><a href="#run">How to run</a><a href="#detectors">Detectors</a><a href="#results">Results</a><a href="#files">Folders</a><a href="#words">Glossary</a><a href="#help">Problems</a></nav>
+<nav><a href="#what">What it does</a><a href="#rate">Frame rate</a><a href="#run">How to run</a><a href="#videos">Track videos</a><a href="#dash">Dashboard</a><a href="#detectors">Detectors</a><a href="#results">Results</a><a href="#files">Folders</a><a href="#words">Glossary</a><a href="#help">Problems</a></nav>
 
 <h2 id="what">1. What the system does</h2>
 <p>The camera looks at the road. The software finds the two lane lines and decides how much to turn the front wheels so the car stays in the middle of the lane. It outputs a <b>steering angle</b> and the <b>turning radius</b> (R = 1/curvature; + means a left turn). It only steers. In the competition the safety driver controls speed (rulebook K.2.1).</p>
@@ -37,16 +37,18 @@ nav{background:var(--card);border:1px solid var(--line);border-radius:10px;paddi
 <h2 id="rate">2. Frame rate and timing</h2>
 <p>The whole control loop runs at a <b>fixed 20 Hz</b> (one step every 50 ms): camera frame, then detector, then controller, then steering command. The vehicle physics in the test bench is calculated at 200 Hz (every 5 ms). One frame (50 ms) of processing delay is built in on purpose, and the Kalman filter compensates for it.</p>
 <table><tr><th>Stage (measured on the RTX 4050 laptop)</th><th>Time per frame</th><th>Max rate</th></tr>
-<tr><td>Classic detector (MATLAB, CPU)</td><td>17 ms</td><td>58 Hz</td></tr>
-<tr><td>Team CNN UFLDv2 (onnxruntime, CPU)</td><td>58 ms</td><td>17 Hz</td></tr>
-<tr><td>YOLOP (onnxruntime, CPU)</td><td>58 ms</td><td>17 Hz</td></tr>
-<tr><td>Bird's-eye warp</td><td>3 ms</td><td>310 Hz</td></tr>
-<tr><td>Line search and fit</td><td>8 ms</td><td>120 Hz</td></tr>
+<tr><td>Classic detector (MATLAB, CPU)</td><td>19 ms</td><td>54 Hz</td></tr>
+<tr><td>Team CNN UFLDv2 (ONNX add-on, GPU)</td><td>32 ms</td><td>31 Hz</td></tr>
+<tr><td>YOLOP (ONNX add-on, GPU)</td><td>38 ms</td><td>27 Hz</td></tr>
+<tr><td>Bird's-eye warp (GPU / CPU)</td><td>2 ms</td><td>450 Hz</td></tr>
+<tr><td>Line search and fit</td><td>5–12 ms</td><td>80+ Hz</td></tr>
+<tr><td>Recorded video, CNN, 8 frames per GPU call</td><td>24–32 ms</td><td>30–40 Hz</td></tr>
 <tr><td>LKA controller (MIL bench, whole 60 s run incl. vehicle physics)</td><td>41 s for 60 s</td><td>1.4× faster than real time</td></tr>
 </table>
 <ul>
-<li><b>Classic detector total</b> ≈ 28 ms per frame, so it easily keeps up with 20 Hz in real time.</li>
-<li><b>CNN on CPU</b> ≈ 68 ms per frame. That is slower than real time, but the <i>simulation</i> stays correct: simulation time is not wall-clock time, so the run just takes longer. For real-time CNN, run it on the GPU: install the MATLAB add-on "Deep Learning Toolbox Converter for ONNX Model Format" (then <code>LKA.Vision.OnnxBackend = 'matlab'</code>), or use TensorRT on the Jetson later.</li>
+<li><b>Classic detector total</b> ≈ 33 ms per frame, so it keeps up with 20 Hz in real time.</li>
+<li><b>Team CNN on the GPU</b> ≈ 40 ms per frame: real time at 20 Hz (it was 68 ms on the CPU). The ONNX add-on is installed and used automatically (<code>LKA.Vision.OnnxBackend = 'auto'</code>); Python onnxruntime on the CPU is the fallback. The simulation stays correct either way: simulation time is not wall-clock time.</li>
+<li>On the Jetson later: TensorRT. On this laptop more speed needs GPU Coder + CUDA Toolkit + TensorRT (not installed), or the NVIDIA "Prefer maximum performance" power mode.</li>
 <li><b>Camera-in-the-loop runs</b> with Unreal take about 90–140 s of wall time for a 60 s scenario.</li>
 </ul>
 
@@ -60,6 +62,8 @@ nav{background:var(--card);border:1px solid var(--line);border-radius:10px;paddi
 <li><b>Camera test on the official track</b>. An Unreal window opens; the video goes to <code>results/vision/</code>.
 <pre>run_lka_vision(Detectors={'cnn'})          % team CNN
 run_lka_vision(Detectors={'classic'})      % simple detector</pre></li>
+<li><b>Open the live dashboard</b> (browser page with the camera view, steering, speed, GPU load and all results):
+<pre>start_lka_dashboard()</pre></li>
 <li><b>Compare the detectors</b> (table in <code>results/benchmark/</code>):
 <pre>run_detector_benchmark()</pre></li>
 <li><b>Run all tests:</b> <code>runtests('tests')</code>. Unreal tests only run after <code>setenv('LKA_RUN_UNREAL_TESTS','1')</code>.</li>
@@ -69,18 +73,34 @@ run_lka_vision(Detectors={'classic'})      % simple detector</pre></li>
 <pre>python tools/export_ufld_onnx.py &lt;model_best.pth&gt; models/perception/team_cnn.onnx</pre>
 or copy it from the team Drive.</div>
 
+<h2 id="videos">3a. Track videos (phone or organisers' video)</h2>
+<p>Put the videos in <code>vids/</code> and run</p>
+<pre>run_lka_on_test_videos()</pre>
+<p>For every video a folder <code>test_res/&lt;video name&gt;/</code> is written:</p>
+<table><tr><th>File</th><th>What it shows</th></tr>
+<tr><td><code>lka_video_annotated.mp4</code></td><td>The video with the ego lane (green), the CNN lane points (dots), the lane centre (yellow), the path the LKA would steer (magenta), LKA state, speed, steering, turning radius and a steering bar.</td></tr>
+<tr><td><code>lka_video_overview.png</code></td><td>Six graphs over time: lane position, heading, road and command radius, steering, speed, yaw.</td></tr>
+<tr><td><code>lka_video_path.png</code></td><td>The driven path seen from above with the detected lines.</td></tr>
+<tr><td><code>lka_video_results.csv</code></td><td>One row per frame (20 per second), every value above.</td></tr>
+</table>
+<p><code>test_res/summary.csv</code> has one row per video. The car in a video does not react to the LKA: the steering and turning radius are what the LKA <i>would</i> command. Speed and yaw come from the road texture (about ±20 %). Give the camera height (<code>CameraHeight</code>) or the real lane width (<code>LaneWidth</code>) and the field of view (<code>HFovDeg</code>, phone ≈ 70°) for correct metres.</p>
+
+<h2 id="dash">3b. Live dashboard</h2>
+<p><code>start_lka_dashboard()</code> opens <code>http://127.0.0.1:8050</code>. While a video or an Unreal run is working, it shows the annotated camera frame, progress, LKA state, speed, steering, turning radius, lane position, the time each step takes, and the GPU (load, memory, temperature, power). The <b>Results</b> tab lists every finished video and simulation with buttons to play the videos and open the graphs. It only listens on your own PC.</p>
+
 <h2 id="detectors">4. The three lane detectors</h2>
 <table><tr><th>Name</th><th>What it is</th><th>Status in simulation</th></tr>
-<tr><td><code>classic</code></td><td>Finds bright white/yellow thin lines. No AI.</td><td class="ok">Works: 0.079 m max offset</td></tr>
-<tr><td><code>cnn</code></td><td>Team UFLDv2 (ResNet-18, trained on TuSimple, "96 %" = TuSimple point accuracy). Fit limited to 18 m ahead because its far points bend the wrong way on tight curves.</td><td class="ok">Best: 0.039 m max offset, 100 % in lane</td></tr>
-<tr><td><code>yolop</code></td><td>2025 ADAS_2026 model (trained on real dashcam video)</td><td class="bad">Does not see the rendered lines (sim vs real gap)</td></tr>
+<tr><td><code>classic</code></td><td>Finds bright white/yellow thin lines. No AI.</td><td class="ok">Works: 0.090 m max offset</td></tr>
+<tr><td><code>cnn</code></td><td>Team UFLDv2 (ResNet-18, trained on TuSimple, "96 %" = TuSimple point accuracy). Checked against the Colab code: same lane points to 0.06 px. Uses its own ego-left / ego-right lane slots, so kerbs and neighbour lanes are not taken. Fit limited to 18 m ahead.</td><td class="ok">Best: 0.037 m max offset, 100 % in lane</td></tr>
+<tr><td><code>yolop</code></td><td>2025 ADAS_2026 model (trained on real dashcam video). The 2025 code fed it BGR colours; it was trained on RGB. Fixed.</td><td class="ok">Works since the fix: 0.166 m, 100 % in lane (sees the rendered left line in only 31 % of frames)</td></tr>
 </table>
 <p>Switch with <code>LKA.Vision.Detector = 'cnn'</code> (or pass <code>Detectors=</code> to the run scripts). How to plug in a new model: <code>models/perception/README.md</code>.</p>
 
 <h2 id="results">5. Results (official LKA track, 0 → 30 km/h, pure pursuit)</h2>
 <table><tr><th>Lane input</th><th>Max offset from centre</th><th>Closest tyre to line</th><th>Time in lane</th></tr>
-<tr><td>Camera, team CNN</td><td>0.039 m</td><td>0.89 m</td><td>100 %</td></tr>
-<tr><td>Camera, classic</td><td>0.079 m</td><td>0.85 m</td><td>100 %</td></tr>
+<tr><td>Camera, team CNN</td><td>0.037 m</td><td>0.90 m</td><td>100 %</td></tr>
+<tr><td>Camera, classic</td><td>0.090 m</td><td>0.84 m</td><td>100 %</td></tr>
+<tr><td>Camera, YOLOP</td><td>0.166 m</td><td>0.76 m</td><td>100 %</td></tr>
 <tr><td>Simulated sensor (development only)</td><td>0.098 m</td><td>0.84 m</td><td>100 %</td></tr>
 <tr><td>2025 Python steering law as written</td><td>left the road after 5.5 s</td><td>-</td><td>62 %</td></tr>
 </table>
@@ -93,7 +113,9 @@ or copy it from the team Drive.</div>
 <tr><td><code>src/controllers/</code>, <code>src/perception/</code></td><td>pure pursuit, Stanley, MPC, Kalman lane tracker</td></tr>
 <tr><td><code>models/</code></td><td>Simulink models (generated by scripts; do not edit by hand)</td></tr>
 <tr><td><code>models/perception/</code></td><td>AI model files and their settings (<code>.json</code>)</td></tr>
-<tr><td><code>scripts/</code></td><td><code>run_lka_mil</code>, <code>run_lka_vision</code>, <code>run_detector_benchmark</code>, <code>measure_lka_timing</code></td></tr>
+<tr><td><code>scripts/</code></td><td><code>run_lka_mil</code>, <code>run_lka_vision</code>, <code>run_lka_on_test_videos</code>, <code>start_lka_dashboard</code>, <code>run_detector_benchmark</code>, <code>measure_lka_timing</code></td></tr>
+<tr><td><code>vids/</code>, <code>test_res/</code></td><td>track videos and their results (annotated videos, graphs, CSV)</td></tr>
+<tr><td><code>tools/</code></td><td>dashboard server, ONNX export, Colab reference check</td></tr>
 <tr><td><code>results/</code></td><td>figures, videos (not in git), tables</td></tr>
 <tr><td><code>docs/</code></td><td>technical explanation (<code>lka_controller.md</code>), 2025 audit, plans</td></tr>
 </table>
@@ -117,6 +139,8 @@ or copy it from the team Drive.</div>
 <tr><td><i>No ONNX back end</i></td><td><code>pip install onnxruntime</code> for MATLAB's Python, or install the ONNX add-on.</td></tr>
 <tr><td>Unreal error "variation in terrain"</td><td>The car left the road (lane lost). Check the detector.</td></tr>
 <tr><td>Scene not found after moving the folder</td><td>Run <code>build_lka_vision_bench()</code> again.</td></tr>
+<tr><td><i>3D Simulation engine was terminated by the user (error code: 4)</i></td><td>The GPU memory is full (Unreal and the CNN share 6 GB). Close old runs, then <code>clear all; reset(gpuDevice)</code>.</td></tr>
+<tr><td>Dashboard shows "server offline"</td><td>Run <code>start_lka_dashboard()</code> again (it starts the small Python server).</td></tr>
 </table>
 <p style="color:var(--muted)">Generated 2026-10-16. Repository: github.com/rithvin-us/LKA---Simulink-</p>
 </main></body></html>

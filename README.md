@@ -32,13 +32,19 @@ The repository follows **MathWorks Automotive Advisory Board (MAAB)** guidelines
    The official LKA track runs in Unreal from `data/scenes/LKA/LKA.usd` (no RoadRunner needed):
    ```matlab
    report = calibrate_vision_bench();                   % once: frame map, camera height check
-   run_lka_vision(Detectors={'classic'});               % camera-in-the-loop, video in results/vision
-   run_lka_vision(Detectors={'yolop','cnn'});           % after installing the ONNX importer add-on
+   run_lka_vision(Detectors={'classic','cnn','yolop'}); % camera-in-the-loop, video in results/vision
    run_detector_benchmark();                            % YOLOP vs team UFLDv2 vs classic
    ```
    Detector selection: `LKA.Vision.Detector`; model contract: `models/perception/README.md`.
+   The networks run on the GPU through the ONNX importer add-on (onnxruntime CPU fallback).
    Audit of the 2025 Python stack: `docs/adas2026_audit.md`.
-8. When finished:
+8. Recorded track videos (lane, LKA steering, turning radius, speed, yaw) and the live dashboard:
+   ```matlab
+   start_lka_dashboard();        % http://127.0.0.1:8050 (live run, GPU, results)
+   run_lka_on_test_videos();     % every vids/*.mp4 -> test_res/<name>/ (MP4, PNG, CSV) + summary.csv
+   ```
+   See `docs/lka_controller.md` §9-10.
+9. When finished:
    ```matlab
    run('config/shutdown.m')
    ```

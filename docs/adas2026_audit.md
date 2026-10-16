@@ -39,6 +39,7 @@ Severity: **C** critical (wrong steering or unsafe hardware behaviour), **H** hi
 | H4 | `kalman_tracker.py:114`, `safety_monitor.py:72` | IMU sign errors (latent): the dropout prediction turns the wrong way; the yaw plausibility check trips for any steer above about 1.2°. | Review derivation. | Use one gyro sign convention (+ left) everywhere. |
 | H5 | `bench_steering_to_arduino.py:72-76` | `STR/STL` are relative in the firmware (`:864-873`); the bench tool integrates commands towards the stop. | Firmware parser. | Send absolute `STA<deg>`. |
 | H6 | `conditioner.py:54`, `safety_monitor.py:90`, `steering_v2.py:94` | NaN is never rejected and reaches the Kalman filter and the Arduino. | Review. | `math.isfinite` guards. |
+| H7 | YOLOP preprocessing (taken from YOLOP `demo.py`) | The lane head gets the image in BGR; YOLOP was trained on RGB (`AutoDriveDataset` converts BGR to RGB). Most lane lines stay below threshold. | Unreal S1 frames: left line found in 4 % (BGR) vs 31 % (RGB) of the frames, right 51 % vs 90 %; the BGR closed loop leaves the road, the RGB one stays in lane (0.166 m). College-track frame: 3993 vs 4567 lane pixels. | `cv2.cvtColor(img, cv2.COLOR_BGR2RGB)` before the normalisation (MATLAB: `yolop.json` `channel_order` `RGB`). |
 | M1 | `lane_detection_node_birdeye.py:496` | A reconstructed (synthetic) side is committed as the continuity reference, so the real line is never re-acquired while the other side persists. | Review. | Commit direct fits only (done in `lka_vision_lane_step.m`). |
 | M2 | `lane_detection_node_birdeye.py:472` | The per-side 1.8 s coast is unreachable (reconstruction runs first). | Review. | Coast before reconstructing, or update the docs. |
 | M3 | `bird_eye_extraction.py:103` | The continuity search has no distance gate (last tier accepts any blob, even on the other side). | Review. | Windowed search (done in `lka_search_boundary.m`). |
@@ -93,7 +94,7 @@ tyre's own-side line, so a car that crossed a line completely was never flagged 
 
 | ADAS_2026 idea | MATLAB implementation |
 |---|---|
-| YOLOP lane head, letterbox, ImageNet normalisation on BGR | `lka_detector_onnx_seg.m` + `models/perception/yolop.json` |
+| YOLOP lane head, letterbox, ImageNet normalisation (on RGB: BGR was finding H7) | `lka_detector_onnx_seg.m` + `models/perception/yolop.json` |
 | Bird's-eye warp | `lka_camera_model.m` (calibrated `monoCamera` / `birdsEyeView`, metric) |
 | Continuity-aware selection, lateral jump gate | warm prior window in `lka_search_boundary.m` |
 | Quality tiers, partial fits | boundary `Strength` from coverage and probability (`lka_fit_boundary.m`) |
@@ -110,4 +111,5 @@ tyre's own-side line, so a car that crossed a line completely was never flagged 
 3. H1: calibrate the ZED and use a metric IPM (port the `lka_camera_model.m` logic).
 4. H2, H3, M5: lane width 3.5, per-frame command, measured speed.
 5. H4, H6: gyro sign, NaN guards.
-6. M1–M4, M6–M11, L1–L2.
+6. H7: feed YOLOP RGB (if YOLOP stays in the Jetson stack next to the team CNN).
+7. M1–M4, M6–M11, L1–L2.
