@@ -42,3 +42,15 @@ Thumbs.db
 
 # LKA MIL run artefacts (figures and KPI csv are kept)
 results/**/*.mat
+
+# 2025 Python ADAS stack: separate repo (RatheeswarS/ADAS_2026), read-only reference
+ADAS_2026/
+# Team CNN (UFLDv2) ONNX is > 100 MB: shared through Drive, see models/perception/README.md
+models/perception/team_cnn.onnx
+# Imported ONNX networks (regenerated from the .onnx by lka_import_onnx_detector)
+models/perception/*_dlnetwork.mat
+models/perception/+lka_onnx_*/
+# Camera datasets, videos, ONNX parity fixtures
+data/vision_datasets/
+results/**/*.mp4
+tests/fixtures/*.bin
