@@ -1,0 +1,6 @@
+function scene = lka_default_scene()
+% LKA_DEFAULT_SCENE Straight 3.5 m lane, vehicle centred and aligned (renderer input).
+    scene = struct('Offset', 0, 'Yaw', 0, 'Curvature', 0, 'Width', 3.5, 'LineWidth', 0.125, ...
+        'Dashed', [false false], 'DashLen', 3, 'GapLen', 6, 'Missing', [false false], ...
+        'Distractor', NaN);
+end
