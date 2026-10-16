@@ -90,20 +90,23 @@ or copy it from the team Drive.</div>
 
 <h2 id="detectors">4. The three lane detectors</h2>
 <table><tr><th>Name</th><th>What it is</th><th>Status in simulation</th></tr>
-<tr><td><code>classic</code></td><td>Finds bright white/yellow thin lines. No AI.</td><td class="ok">Works: 0.090 m max offset</td></tr>
-<tr><td><code>cnn</code></td><td>Team UFLDv2 (ResNet-18, trained on TuSimple, "96 %" = TuSimple point accuracy). Checked against the Colab code: same lane points to 0.06 px. Uses its own ego-left / ego-right lane slots, so kerbs and neighbour lanes are not taken. Fit limited to 18 m ahead.</td><td class="ok">Best: 0.037 m max offset, 100 % in lane</td></tr>
-<tr><td><code>yolop</code></td><td>2025 ADAS_2026 model (trained on real dashcam video). The 2025 code fed it BGR colours; it was trained on RGB. Fixed.</td><td class="ok">Works since the fix: 0.166 m, 100 % in lane (sees the rendered left line in only 31 % of frames)</td></tr>
+<tr><td><code>classic</code></td><td>Finds bright white/yellow thin lines. No AI.</td><td class="ok">Works: 0.086 m max offset</td></tr>
+<tr><td><code>cnn</code></td><td>Team UFLDv2 (ResNet-18, trained on TuSimple, "96 %" = TuSimple point accuracy). Checked against the Colab code: same lane points to 0.06 px. Uses its own ego-left / ego-right lane slots, so kerbs and neighbour lanes are not taken. Fit limited to 18 m ahead.</td><td class="ok">Best: 0.031 m max offset, 100 % in lane</td></tr>
+<tr><td><code>yolop</code></td><td>2025 ADAS_2026 model (trained on real dashcam video). The 2025 code fed it BGR colours; it was trained on RGB. Fixed.</td><td class="ok">Works since the fix: 0.122 m, 100 % in lane (sees the rendered left line in only 31 % of frames)</td></tr>
 </table>
 <p>Switch with <code>LKA.Vision.Detector = 'cnn'</code> (or pass <code>Detectors=</code> to the run scripts). How to plug in a new model: <code>models/perception/README.md</code>.</p>
 
 <h2 id="results">5. Results (official LKA track, 0 → 30 km/h, pure pursuit)</h2>
 <table><tr><th>Lane input</th><th>Max offset from centre</th><th>Closest tyre to line</th><th>Time in lane</th></tr>
-<tr><td>Camera, team CNN</td><td>0.037 m</td><td>0.90 m</td><td>100 %</td></tr>
-<tr><td>Camera, classic</td><td>0.090 m</td><td>0.84 m</td><td>100 %</td></tr>
-<tr><td>Camera, YOLOP</td><td>0.166 m</td><td>0.76 m</td><td>100 %</td></tr>
+<tr><td>Camera, team CNN</td><td>0.031 m</td><td>0.91 m</td><td>100 %</td></tr>
+<tr><td>Camera, classic</td><td>0.086 m</td><td>0.85 m</td><td>100 %</td></tr>
+<tr><td>Camera, YOLOP</td><td>0.122 m</td><td>0.81 m</td><td>100 %</td></tr>
+<tr><td>Camera, team CNN, start 0.8 m off-centre and 4° crooked (S5)</td><td>0.88 m (the start offset), back in the centre in about 3 s</td><td>0.015 m</td><td>100 %</td></tr>
 <tr><td>Simulated sensor (development only)</td><td>0.098 m</td><td>0.84 m</td><td>100 %</td></tr>
 <tr><td>2025 Python steering law as written</td><td>left the road after 5.5 s</td><td>-</td><td>62 %</td></tr>
 </table>
+<p>At 33 km/h (S2) the CNN stays within 0.049 m. Before today a crooked start (S5) made the car swing into the next lane with the camera; the controller now looks further ahead at low speed (4 m instead of 2.5 m) and S5 passes with every detector except YOLOP (93.5 % in lane).</p>
+<p><b>What the team still has to do:</b> <code>docs/team_actions.md</code>.</p>
 <p>The 2025 code had a wrong sign in its heading term and a 1-second averaging delay. Details and the fix list for the Jetson phase: <code>docs/adas2026_audit.md</code>. Score used by the rulebook: S = T<sub>in lane</sub> / T<sub>total</sub>², reported as <code>RulebookScore</code>.</p>
 
 <h2 id="files">6. Where things are</h2>

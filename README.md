@@ -51,6 +51,8 @@ The repository follows **MathWorks Automotive Advisory Board (MAAB)** guidelines
 
 How the LKA works (lane perception, supervisor, pure pursuit / Stanley 2025 / MPC,
 limits, turning radius): **[`docs/lka_controller.md`](docs/lka_controller.md)**.
+What the team still has to measure, record, train or install:
+**[`docs/team_actions.md`](docs/team_actions.md)**.
 
 ---
 

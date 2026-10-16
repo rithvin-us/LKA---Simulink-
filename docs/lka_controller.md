@@ -149,7 +149,8 @@ For small errors this expands to
 ```
 So pure pursuit on the detected lane is a feed-forward-plus-PD controller, and
 both gains come from one physical knob, the look-ahead distance `L_d`:
-- `L_d` comes from a 1-D lookup table on speed: 2.5 m at standstill, 6.0 m at 30 km/h, 8.5 m at 50 km/h.
+- `L_d` comes from a 1-D lookup table on speed: 4.0 m at standstill, 6.0 m at 30 km/h, 8.5 m at 50 km/h
+  (never below 3.5 m; a shorter low-speed look-ahead over-steers a crooked start, see §8, S5).
 - It is shortened in curves by `L_d/(1 + 1.5·|κ|·L_d)` to limit corner cutting.
 
 A small integral term removes any steady offset that unmodelled understeer
@@ -292,9 +293,13 @@ Columns:
 | S4 degraded detector¹ | **Pure Pursuit** | **0.133** | 0.052 | 0.80 | 100 % | 1.18 | 2.99 |
 | | MPC | 0.152 | 0.056 | 0.78 | 100 % | 1.10 | 2.66 |
 | | Stanley 2025 | 0.430 | 0.139 | 0.49 | 100 % | 2.35 | 4.95 |
-| S5 0.8 m / 4° initial offset | **Pure Pursuit** | **0.873** | 0.117 | 0.02 | 100 % | 2.45 | 4.86 |
+| S5 0.8 m / 4° initial offset | **Pure Pursuit**² | **0.882** | 0.130 | 0.015 | 100 % | 1.80 | 3.38 |
 | | MPC | 0.900 | 0.140 | 0.001 | 100 % | 1.65 | 3.36 |
 | | Stanley 2025 | 1.171 | 0.532 | −0.26 | 95.6 % | 2.99 | 5.00 |
+
+² With the low-speed look-ahead of 2026-10-16 (4.0 m at standstill instead of 2.5 m; values
+from 30 km/h up unchanged). Before: 0.873 m, a_y 2.45 m/s², jerk 4.86 m/s³, R 5 m command at
+2 km/h. S1-S4 are unchanged.
 
 ¹ S4 contains a deliberate 1.5 s loss of both lines. The supervisor correctly
 goes ACTIVE → DEGRADED (after 0.25 s) → TAKEOVER (after 1.0 s) → STANDBY → ACTIVE,
@@ -401,15 +406,33 @@ S1, 0 → 30 km/h, pure pursuit, classic detector):
 **Detector benchmark and closed loop** (241 recorded official-track frames, then one closed-loop
 S1 run per detector; `run_detector_benchmark`):
 
-| Detector | Back end | Lines found L / R | Boundary error at 10 m | Detector time | Closed loop: max / RMS offset, in lane |
-|---|---|---|---|---|---|
-| team CNN (UFLDv2, fit to 18 m, ego-lane pages) | importer, GPU | 99.6 % / 99.6 % | 6.3 cm | 32 ms | **0.037 m / 0.013 m, 100 %** |
-| classic | MATLAB, CPU | 99.6 % / 99.6 % | 7.1 cm | 19 ms | 0.090 m / 0.045 m, 100 % |
-| YOLOP (2025, RGB input, fit to 15 m) | importer, GPU | 31 % / 90 % | 9.4 cm | 38 ms | 0.166 m / 0.052 m, 100 % |
+| Detector | Back end | Lines found L / R | Boundary error at 10 m | Detector time |
+|---|---|---|---|---|
+| team CNN (UFLDv2, fit to 18 m, ego-lane pages) | importer, GPU | 99.6 % / 99.6 % | 6.3 cm | 32 ms |
+| classic | MATLAB, CPU | 99.6 % / 99.6 % | 7.1 cm | 19 ms |
+| YOLOP (2025, RGB input, fit to 15 m) | importer, GPU | 31 % / 90 % | 9.4 cm | 38 ms |
 
-(Run 2026-10-16 after the GPU pipeline. The classic run moved from 0.079 to 0.090 m when the
-bird's-eye warp changed from `transformImage` to `lka_bev_warp`: both give the same map to
-1e-7, but the closed loop amplifies such differences over 60 s; RMS 0.043 → 0.045 m.)
+Camera closed loop on the official track (`run_lka_vision`, pure pursuit, 2026-10-16, max / RMS
+lateral offset, min tyre-to-line margin, time with all tyres in lane):
+
+| Scenario | team CNN | classic | YOLOP |
+|---|---|---|---|
+| S1 0 → 30 km/h | **0.031 / 0.012 m**, 0.91 m, 100 % | 0.086 / 0.044 m, 0.85 m, 100 % | 0.122 / 0.058 m, 0.81 m, 100 % |
+| S2 0 → 33 km/h | **0.049 / 0.014 m**, 0.89 m, 100 % | 0.106 / 0.046 m, 0.83 m, 100 % | 0.155 / 0.054 m, 0.77 m, 100 % |
+| S5 start 0.8 m left, 4° | **0.882 / 0.129 m**, 0.015 m, 100 % | 0.882 / 0.134 m, 0.014 m, 100 % | 1.402 / 0.365 m, −0.46 m, 93.5 % |
+
+S5 maximum = the start offset itself. S3 (a different, tighter track) and S4 (degradations of the
+emulated detector) have no Unreal scene / no meaning for the camera and run in MIL only.
+
+**S5 with the camera used to fail** (car swung out into the next lane: max 3.99 m, 10 % in lane
+with the CNN; the classic run left the road). The low-speed look-ahead was 2.5 m: with a 1 m
+lane-centre error while the car pulls away, pure pursuit asked for R 4 m at 2 km/h, the heading
+swung by ±13°, and with frames where the far line was not seen the swing grew. The look-ahead
+now starts at 4.0 m (minimum 3.5 m, unchanged from 30 km/h up); MIL S1-S4 are unchanged.
+
+(Earlier on 2026-10-16 the classic S1 run moved from 0.079 to 0.090 m when the bird's-eye
+warp changed from `transformImage` to `lka_bev_warp`: both give the same map to 1e-7, but the
+closed loop amplifies such differences over 60 s.)
 
 **YOLOP input bug (ADAS_2026).** YOLOP was trained on RGB (its `AutoDriveDataset` converts
 BGR to RGB), but YOLOP's `demo.py`, and the ADAS_2026 port taken from it, feed BGR. With
@@ -518,6 +541,9 @@ College-track clips (2026-10-16, team CNN, GPU, about 30 ms per frame):
   TuSimple highways, often labels the road edges as the ego lane there, and the driver also
   cuts across the painted lines. Fine-tuning the team model on about 200 labelled frames of
   the college track is the real fix.
+- The video tool sets the controller's lane-width band from the measured width
+  (`lka_set_lane_width`). For a live test on another track, set `lkaLaneWidth` (for example
+  `lkaLaneWidth = 2.0;`) before `run('config/startup.m')`.
 - Tried and rejected: moving every CNN lane point onto the white paint under it and dropping
   points without paint. In Unreal the closed loop got worse (0.094 m instead of 0.037 m:
   the double centre line and the paint lying off the lane border), and on clip 12.23.28 both

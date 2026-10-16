@@ -120,13 +120,16 @@ function LKA = lka_build_params(profile, vehicle, sensor)
     % ----------------------------------------- Controller 1: pure pursuit (main)
     switch profile
         case 'baja'
+            % Below 30 km/h the look-ahead no longer shrinks to 2.5 m: with a 1 m lane-centre
+            % error a 2.5-3 m look-ahead asks for ~35 deg of heading change while the car
+            % pulls away (S5: R 4 m command at 2 km/h, then a growing swing with the camera).
             PP.LdSpeed = [0    2    4    6    8.33  10   14 ];   % [m/s]
-            PP.LdBase  = [2.5  3.0  3.8  4.8  6.0   6.8  8.5];  % [m]
+            PP.LdBase  = [4.0  4.3  4.8  5.3  6.0   6.8  8.5];  % [m]
         case 'skeleton'
             PP.LdSpeed = [0    2    4    6    8.33  10   14 ];
             PP.LdBase  = [4.0  4.5  5.3  6.3  7.5   8.3  10.0];
     end
-    PP.LdMin       = 2.5;                % [m]
+    PP.LdMin       = 3.5;                % [m] (after the curve shortening)
     PP.LdMax       = 15.0;               % [m]
     PP.LdCurvGain  = 1.5;                % Look-ahead shortening in curves: Ld/(1+g*|kappa|*Ld) [-]
     PP.Ki          = 2.0e-3;             % Integral gain on lane-centre offset [1/(m^2 s)]
