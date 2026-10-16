@@ -1,8 +1,8 @@
-function lanes = lka_ufld_decode(o, cfg, imgSize)
+function [lanes, ids] = lka_ufld_decode(o, cfg, imgSize)
 % LKA_UFLD_DECODE UFLDv2 anchor outputs -> lane points in image pixels.
 %
 % Syntax:
-%   lanes = lka_ufld_decode(o, cfg, imgSize)          o from lka_ufld_outputs
+%   [lanes, ids] = lka_ufld_decode(o, cfg, imgSize)   o from lka_ufld_outputs
 %
 % Port of pred2coords (cfzd/Ultra-Fast-Lane-Detection-v2). An anchor exists when
 % exist channel 2 beats channel 1. A row lane (cfg.row_lanes) is used when more than half
@@ -10,7 +10,9 @@ function lanes = lka_ufld_decode(o, cfg, imgSize)
 % column anchors exist. Position = expectation of the softmax over +-local_width cells
 % around the arg-max cell, + 0.5, scaled by (num_grid - 1) to the image size.
 % Output: cell array, one [u v p k] matrix per lane: MATLAB pixel coordinates (u, v),
-% existence probability p, anchor index k. pred2coords returns 0-based continuous pixel
+% existence probability p, anchor index k; ids(i) = network lane slot of lanes{i}
+% (TuSimple order, left to right: 1 left-left, 2 ego-left, 3 ego-right, 4 right-right).
+% pred2coords returns 0-based continuous pixel
 % positions; + 0.5 converts them to MATLAB's 1-based pixel-centre convention.
 % The loc heads must be raw logits (as exported by deploy/pt2onnx.py): the local
 % window softmax is taken here.
@@ -19,16 +21,19 @@ function lanes = lka_ufld_decode(o, cfg, imgSize)
     rowAnchor = linspace(cfg.row_anchor_px(1), cfg.row_anchor_px(2), cfg.num_cls_row) / cfg.anchor_image_height;
     colAnchor = linspace(0, 1, cfg.num_cls_col);
     lanes = {};
+    ids = zeros(1, 0);
     for lane = reshape(cfg.row_lanes, 1, [])
         q = decodeLane(o.LocRow(:, :, lane), o.ExistRow(:, :, lane), cfg.num_cls_row / 2, W, cfg.local_width);
         if ~isempty(q)
             lanes{end + 1} = [q(:, 1) + 0.5, reshape(rowAnchor(q(:, 3)), [], 1) * H + 0.5, q(:, 2:3)]; %#ok<AGROW>
+            ids(end + 1) = lane; %#ok<AGROW>
         end
     end
     for lane = reshape(cfg.col_lanes, 1, [])
         q = decodeLane(o.LocCol(:, :, lane), o.ExistCol(:, :, lane), cfg.num_cls_col / 4, H, cfg.local_width);
         if ~isempty(q)
             lanes{end + 1} = [reshape(colAnchor(q(:, 3)), [], 1) * W + 0.5, q(:, 1) + 0.5, q(:, 2:3)]; %#ok<AGROW>
+            ids(end + 1) = lane; %#ok<AGROW>
         end
     end
 end

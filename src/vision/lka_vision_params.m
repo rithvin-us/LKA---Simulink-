@@ -45,6 +45,7 @@ function V = lka_vision_params(profile)
     V.DetectorDir = '';          % set by lka_build_params (models/perception)
     V.UseGpu      = true;
     V.OnnxBackend = 'auto';      % 'auto' | 'matlab' (importer add-on, GPU) | 'onnxruntime' (Python, CPU)
+    V.Monitor     = true;        % camera bench publishes live telemetry (lka_monitor_publish)
 
     % ---------------------------------------------------------- sliding-window search
     V.Search.ProbThreshold = 0.5;
@@ -56,6 +57,11 @@ function V = lka_vision_params(profile)
     V.Search.MaxGap        = 8;      % stop after this length without a hit [m]
     V.Search.MinCenterDist = 0.4;    % cold search keeps this far from the vehicle axis [m]
     V.Search.LineHalfWidth = 0.25;   % pixels this close to the slice peak feed the fit [m]
+    V.Search.SeedRange     = 3.0;    % cold start: column histogram of the first SeedRange m ...
+    V.Search.SeedMass      = 30;     % ... the nearest peak with this mass on each side [px]
+    V.Search.SeedHalfWidth = 0.6;    % ... is searched +- this [m] (lane width not assumed)
+    V.Search.SeedFirst     = false;  % cold order: nominal lane first, nearest line as fallback;
+                                     % true while the lane width is unknown (auto-calibration)
 
     % ---------------------------------------------------------- robust fit
     V.Fit.MinPoints        = 60;
@@ -97,6 +103,7 @@ function V = lka_vision_params(profile)
                                               % RoadLine/Marking); the RoadRunner USD export of the
                                               % LKA track carries no semantic classes (ids 2, 57 only)
     V.Bench.VideoFile    = '';
+    V.Bench.RawVideoFile = '';                % unannotated camera frames (run_lka_on_video tests)
     V.Bench.DatasetDir   = '';
     V.Bench.Decimation   = 5;                 % dataset: keep every Nth frame
 end

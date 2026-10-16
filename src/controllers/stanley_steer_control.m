@@ -16,6 +16,13 @@ function [deltaCmd, e_fa, theta_e] = stanley_steer_control(vehicleState, pathPoi
 %                      .y        : Reference path Y [m]
 %                      .yaw      : Reference path tangent angle [rad]
 %                      .wheelbase_a : Distance from C.G. to front axle [m]
+%                      .curvature   : (optional) path curvature at the point [1/m], + left
+%                      .wheelbase   : (optional) wheelbase L [m] for the curvature feed-forward
+%                      With .curvature the yaw damping acts on r - Vx*kappa (the yaw rate the
+%                      path itself demands) and atan(L*kappa) is fed forward, as in Hoffmann
+%                      et al. (2007). Without it (straight path) the law is unchanged. Damping
+%                      the absolute yaw rate steered ~10 deg out of a R 50 m bend at 30 km/h,
+%                      which the cross-track term could only cancel with ~1.5 m of offset.
 %   controllerParams - Struct with control gains:
 %                      .k_stanley: Cross-track gain
 %                      .k_soft   : Speed softening constant [m/s]
@@ -53,8 +60,16 @@ function [deltaCmd, e_fa, theta_e] = stanley_steer_control(vehicleState, pathPoi
     crossTrackTerm = atan2(controllerParams.k_stanley * (-e_fa), Vx + controllerParams.k_soft);
 
     % 6. Raw commanded steering angle with optional yaw rate damping
-    yawDamping = -controllerParams.k_yaw * (vehicleState.yawRate);
-    deltaRaw = theta_e + crossTrackTerm + yawDamping;
+    kappa = 0;
+    if isfield(pathPoint, 'curvature')
+        kappa = pathPoint.curvature;
+    end
+    feedForward = 0;
+    if isfield(pathPoint, 'wheelbase')
+        feedForward = atan(pathPoint.wheelbase * kappa);
+    end
+    yawDamping = -controllerParams.k_yaw * (vehicleState.yawRate - Vx * kappa);
+    deltaRaw = theta_e + crossTrackTerm + yawDamping + feedForward;
 
     % 7. Saturation to mechanical limits
     deltaCmd = max(min(deltaRaw, controllerParams.maxSteerAngle), -controllerParams.maxSteerAngle);

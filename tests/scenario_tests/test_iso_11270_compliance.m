@@ -38,6 +38,7 @@ function testConstantRadiusCurve(testCase)
 
         pathPt.x = track.X(nearIdx); pathPt.y = track.Y(nearIdx);
         pathPt.yaw = track.yaw(nearIdx); pathPt.wheelbase_a = vehicle.a;
+        pathPt.curvature = track.curvature(nearIdx); pathPt.wheelbase = vehicle.a + vehicle.b;
 
         [deltaRaw, e_fa, ~] = stanley_steer_control(vehState, pathPt, controller);
         [deltaCmd, filterState] = lowpass_steer_filter(...

@@ -56,3 +56,6 @@ results/**/*.mp4
 tests/fixtures/*.bin
 # Written by Unreal next to the scene on every run
 data/scenes/LKA/sim3dSemanticTypes.xml
+
+# Live dashboard telemetry (lka_monitor_publish)
+results/monitor/

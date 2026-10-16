@@ -65,6 +65,8 @@ for k = 1:(N - 1)
     pathPt.y = track.Y(nearIdx);
     pathPt.yaw = track.yaw(nearIdx);
     pathPt.wheelbase_a = vehicle.a;
+    pathPt.curvature = curKappa;
+    pathPt.wheelbase = vehicle.a + vehicle.b;
 
     % Compute Stanley Steering Command
     [deltaRaw, e_fa, theta_e] = stanley_steer_control(vehState, pathPt, controller);

@@ -13,10 +13,14 @@ function [out, pad, scale] = lka_letterbox(img, inputSize, padValue)
     scale = min(inputSize(1) / h, inputSize(2) / w);
     nh = round(h * scale);
     nw = round(w * scale);
-    rs = imresize(img, [nh nw], 'box');
+    if isgpuarray(img)
+        rs = lka_resize_pages(img, [nh nw], 'box');      % same result, matrix products on the GPU
+    else
+        rs = imresize(img, [nh nw], 'box');
+    end
     top = floor((inputSize(1) - nh) / 2);
     left = floor((inputSize(2) - nw) / 2);
-    out = repmat(cast(padValue, 'like', img), [inputSize, size(img, 3)]);
+    out = repmat(cast(padValue, 'like', rs), [inputSize, size(img, 3)]);
     out(top + 1:top + nh, left + 1:left + nw, :) = rs;
     pad = [top, left, nh, nw];
 end

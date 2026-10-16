@@ -68,7 +68,7 @@ function report = calibrate_vision_bench(options)
         img = out.calImg(:, :, :, end);
         lab = out.calLabel(:, :, end);
         prob = det.Detect(img);
-        s = lka_vision_lane_step(transformImage(cam.Bev, prob), cam, V, lka_vision_state_init(V), LKA.Ts);
+        s = lka_vision_lane_step(lka_bev_warp(cam, prob), cam, V, lka_vision_state_init(V), LKA.Ts);
         both = s.Left.Strength > 0 && s.Right.Strength > 0;
         w = s.Left.LateralOffset - s.Right.LateralOffset;
         centre = 0.5 * (s.Left.LateralOffset + s.Right.LateralOffset);
@@ -81,7 +81,7 @@ function report = calibrate_vision_bench(options)
                 'ImpliedHeight_m', V.Camera.Height * 3.5 / w, 'SemanticIds', reshape(unique(lab), 1, []));
             outDir = fullfile(root, 'results', 'vision');
             if ~isfolder(outDir), mkdir(outDir); end
-            frame = lka_annotate_frame(img, imresize(transformImage(cam.Bev, prob), V.PreviewSize), s, ...
+            frame = lka_annotate_frame(img, imresize(max(lka_bev_warp(cam, prob), [], 3), V.PreviewSize), s, ...
                 struct('SteerDeg', 0, 'State', 0), cam);
             imwrite(frame, fullfile(outDir, 'calibration.png'));
             imwrite(img, fullfile(outDir, 'calibration_raw.png'));

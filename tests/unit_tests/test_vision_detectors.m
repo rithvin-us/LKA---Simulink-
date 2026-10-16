@@ -167,7 +167,10 @@ function testUfldDetectorRuns(testCase)
     img = lka_render_lane_scene(testCase.TestData.cam, lka_default_scene());
     det.Detect(img);
     t0 = tic; prob = det.Detect(img); ms = 1000 * toc(t0);
-    testCase.verifySize(prob, [720 1280]);
+    testCase.verifyEqual(det.Pages, 2);                % ego-left / ego-right lane slots
+    testCase.verifySize(prob, [720 1280 2]);
+    testCase.verifyGreaterThan(nnz(prob(:, :, 1) > 0.5), 100);   % both ego lines of the scene
+    testCase.verifyGreaterThan(nnz(prob(:, :, 2) > 0.5), 100);
     fprintf('[vision] UFLDv2 %.1f ms/frame (GPU %d)\n', ms, V.UseGpu && canUseGPU());
 end
 

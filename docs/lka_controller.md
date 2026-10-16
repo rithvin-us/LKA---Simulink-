@@ -337,9 +337,11 @@ anticipates the next arc. On the straights the output alternates around ±1000 m
    compiles cleanly with a substituted start pose. The first co-simulation run
    should check the sign of the skeleton pose and yaw (`LKA.Cosim.YawOffsetDeg`)
    and that the route runs along the lane centre.
-2. **Camera lane detection is in place** (section 8). Still open: the YOLOP and
-   team UFLDv2 runs need the ONNX importer add-on and the team's ONNX export; the
-   skeleton camera extrinsics (hood centre) are checked in the RoadRunner run.
+2. **Camera lane detection is in place** (section 8). The team UFLDv2 and YOLOP run
+   through Python onnxruntime on the CPU (about 58 ms per frame); the ONNX importer add-on
+   would move them to the GPU. YOLOP does not detect the rendered lines (sim-vs-real
+   domain gap). The skeleton camera extrinsics (hood centre) are checked in the
+   RoadRunner run.
 3. **The emulated detector reports curvature at the vehicle position only.** It
    gives no preview of curves still ahead in the camera view. A real
    polynomial-fit detector would add preview, which helps pure pursuit and MPC
@@ -396,18 +398,34 @@ S1, 0 → 30 km/h, pure pursuit, classic detector):
 |---|---|---|---|---|---|
 | 0.079 m | 0.043 m | 0.85 m | 100 % | 99.9 % of frames | 31.6 ms/frame |
 
-**Detector benchmark** (241 recorded official-track frames, `run_detector_benchmark`):
+**Detector benchmark and closed loop** (241 recorded official-track frames, then one closed-loop
+S1 run per detector; `run_detector_benchmark`):
 
-| Detector | Lines found L / R | Boundary error at 5 / 10 / 20 m | Heading error | Time |
-|---|---|---|---|---|
-| classic | 99.6 % / 99.6 % | 5 / 7 / 30 cm | 0.88° | 16.5 ms |
+| Detector | Back end | Lines found L / R | Boundary error at 5 / 10 m | Heading error | Time | Closed loop: max offset / in lane |
+|---|---|---|---|---|---|---|
+| team CNN (UFLDv2, fit to 18 m) | onnxruntime CPU | 99.6 % / 99.6 % | 4.4 / 6.3 cm | 1.05° | 58 ms | **0.039 m / 100 %** |
+| classic | MATLAB | 99.6 % / 99.6 % | 5.2 / 7.1 cm | 0.88° | 17 ms | 0.079 m / 100 % |
+| YOLOP (2025) | onnxruntime CPU | 4 % / 51 % | - | - | 58 ms | car leaves the road |
 
 The ground truth is the OpenDRIVE lane border. On this track the paint sits off it: the edge
 line is about 0.13 m outside, and the inner stripe of the double centre line about 0.15 m
-inside. Part of the 20 m error is therefore common to every detector, and the camera keeps
+inside. Part of the boundary error is therefore common to every detector, and the camera keeps
 the car centred between the painted lines. The USD export carries no semantic lane class,
-so F1/IoU are only computed on the synthetic dataset. YOLOP and the team UFLDv2 rows are added
-once the ONNX importer add-on and the team's export are available.
+so F1/IoU are only computed on the synthetic dataset.
+
+**Team UFLDv2 range limit.** On the tighter R127 S-curve the network bends its far lane points
+the wrong way: heading error σ 10°, and curvature anti-correlated with the truth. With the full
+30 m fit the car oscillated and left the lane. Fitting only up to 18 m ahead (`max_range_m` in
+`models/perception/cnn.json`) brings it to σ 1.8°, the same level as the classic detector.
+
+**Frame rate.** Camera, detector and controller run at a fixed 20 Hz (one frame of latency
+modelled, compensated by the Kalman filter). Per-frame processing on the RTX 4050 laptop
+(`measure_lka_timing`):
+- classic chain: 28 ms (real time);
+- CNN chain on CPU: 68 ms. A simulation runs correctly but slower than real time; GPU
+  inference is needed for real time.
+
+The MIL bench (no camera) runs 1.4x faster than real time.
 
 **Known model limitation.** A single polynomial fitted across a straight-to-arc transition
 biases the extrapolated heading at the rear axle (about −1.3° with an arc 22 m ahead). The

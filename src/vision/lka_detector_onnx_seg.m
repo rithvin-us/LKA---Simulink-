@@ -4,10 +4,14 @@ function det = lka_detector_onnx_seg(sidecarFile, useGpu, backend)
 % Syntax:
 %   det = lka_detector_onnx_seg(sidecarFile, useGpu)
 %   det = lka_detector_onnx_seg(sidecarFile, useGpu, backend)   'auto' | 'matlab' | 'onnxruntime'
-%   prob = det.Detect(rgb)        rgb uint8 H x W x 3 -> single H x W lane probability
+%   [prob, info] = det.Detect(rgb)          rgb uint8 H x W x 3 -> single H x W lane probability
+%   [probs, info] = det.DetectBatch(rgbs, keepOnGpu)   H x W x 3 x N -> H x W x 1 x N
 %
 % Contract and sidecar fields: models/perception/README.md (type "seg", e.g. YOLOP).
-% Back end: lka_onnx_backend.
+% With the network on the GPU the whole chain runs there: letterbox, normalisation,
+% network, softmax / sigmoid, un-letterbox and resize back to the camera image; only the
+% probability map is copied back (or stays on the GPU with keepOnGpu = true, for
+% lka_bev_warp). info(n).Ms: detection time per frame [ms]. Back end: lka_onnx_backend.
 
     if nargin < 3
         backend = 'auto';
@@ -22,39 +26,67 @@ function det = lka_detector_onnx_seg(sidecarFile, useGpu, backend)
     inSize = cfg.input_size(:)';
     mean3 = reshape(single(cfg.mean), 1, 1, []);
     std3 = reshape(single(cfg.std), 1, 1, []);
-    det.Name = sprintf('%s [%s]', cfg.name, be.Name);
+    det.Name = sprintf('%s [%s%s]', cfg.name, be.Name, repmat(' GPU', 1, be.OnGpu));
     det.Backend = be.Name;
+    det.OnGpu = be.OnGpu;
+    det.Pages = 1;
     det.MaxRange = inf;                    % trusted look-ahead [m from the rear axle]
     if isfield(cfg, 'max_range_m')
         det.MaxRange = cfg.max_range_m;
     end
-    det.Detect = @detect;
+    det.Detect = @detectOne;
+    det.DetectBatch = @detectBatch;
 
-    function prob = detect(rgb)
-        im = rgb;
-        if strcmpi(cfg.channel_order, 'BGR')
-            im = im(:, :, [3 2 1]);
+    function [prob, info] = detectOne(rgb)
+        [prob, info] = detectBatch(rgb, false);
+    end
+
+    function [probs, info] = detectBatch(rgbs, keepOnGpu)
+        if nargin < 2
+            keepOnGpu = false;
         end
-        [h, w, ~] = size(im);
+        t0 = tic;
+        [h, w, ~, n] = size(rgbs);
+        im = rgbs;
+        if be.OnGpu
+            im = gpuArray(im);
+        end
+        if strcmpi(cfg.channel_order, 'BGR')
+            im = im(:, :, [3 2 1], :);
+        end
+        im = reshape(im, h, w, []);            % frames as extra channels: one resize call
         if strcmpi(cfg.resize, 'letterbox')
             [x, pad] = lka_letterbox(im, inSize, cfg.pad_value);
         else
             x = imresize(im, inSize, 'bilinear');
             pad = [0 0 inSize];
         end
+        x = reshape(x, inSize(1), inSize(2), 3, n);
         x = (single(x) / single(cfg.scale) - mean3) ./ std3;
-        outs = be.Predict(x);
-        Y = lka_onnx_output_hwc(outs{1}, inSize);
-        switch lower(cfg.output)
-            case 'softmax'
-                e = exp(Y - max(Y, [], 3));
-                p = e(:, :, cfg.lane_channel) ./ sum(e, 3);
-            case 'sigmoid'
-                p = 1 ./ (1 + exp(-Y(:, :, cfg.lane_channel)));
-            otherwise
-                p = Y(:, :, cfg.lane_channel);
+        outs = be.PredictBatch(x, be.OnGpu);
+        P = zeros(pad(3), pad(4), n, 'like', x);
+        for k = 1:n
+            Y = lka_onnx_output_hwc(outs{1}{k}, inSize);
+            switch lower(cfg.output)
+                case 'softmax'
+                    e = exp(Y - max(Y, [], 3));
+                    p = e(:, :, cfg.lane_channel) ./ sum(e, 3);
+                case 'sigmoid'
+                    p = 1 ./ (1 + exp(-Y(:, :, cfg.lane_channel)));
+                otherwise
+                    p = Y(:, :, cfg.lane_channel);
+            end
+            P(:, :, k) = p(pad(1) + 1:pad(1) + pad(3), pad(2) + 1:pad(2) + pad(4));
         end
-        p = p(pad(1) + 1:pad(1) + pad(3), pad(2) + 1:pad(2) + pad(4));
-        prob = single(min(max(imresize(p, [h w], 'bilinear'), 0), 1));
+        if isgpuarray(P)
+            P = lka_resize_pages(P, [h w], 'bilinear');
+        else
+            P = imresize(P, [h w], 'bilinear');
+        end
+        probs = reshape(single(min(max(P, 0), 1)), h, w, 1, n);
+        if ~keepOnGpu
+            probs = gather(probs);
+        end
+        info = repmat(struct('Lanes', {{}}, 'Ids', zeros(1, 0), 'Ms', 1000 * toc(t0) / n), n, 1);
     end
 end

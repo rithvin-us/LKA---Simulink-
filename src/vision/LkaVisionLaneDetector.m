@@ -39,9 +39,9 @@ classdef LkaVisionLaneDetector < matlab.System
             t0 = tic;
             prob = obj.Det.Detect(img);
             msDet = 1000 * toc(t0);
-            bev = transformImage(obj.Cam.Bev, prob);
+            bev = lka_bev_warp(obj.Cam, prob);
             [sensor, obj.State, info0] = lka_vision_lane_step(bev, obj.Cam, obj.Vision, obj.State, obj.Ts);
-            preview = single(imresize(bev, obj.Vision.PreviewSize, 'bilinear'));
+            preview = single(imresize(max(bev, [], 3), obj.Vision.PreviewSize, 'bilinear'));
             info = [info0, msDet, 1000 * toc(t0)];
         end
 

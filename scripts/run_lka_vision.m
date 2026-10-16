@@ -11,6 +11,7 @@ function results = run_lka_vision(options)
 %   Controller - 1 pure pursuit, 2 Stanley 2025, 3 MPC (default 1)
 %   Video      - write results/vision/<scenario>_<detector>.mp4 (default true)
 %   Dataset    - record frames for the detector benchmark (default false)
+%   RawVideo   - also write the unannotated camera video <scenario>_<detector>_raw.mp4 (default false)
 %   OutDir     - default results/vision
 %   Rebuild    - rebuild LKA_Vision_TestBench first (default false)
 % Output: struct array (res, kpi); CSV lka_vision_kpis.csv and figures in OutDir.
@@ -21,6 +22,7 @@ function results = run_lka_vision(options)
         options.Controller (1,1) double = 1
         options.Video (1,1) logical = true
         options.Dataset (1,1) logical = false
+        options.RawVideo (1,1) logical = false
         options.OutDir char = ''
         options.Rebuild (1,1) logical = false
     end
@@ -55,12 +57,20 @@ function results = run_lka_vision(options)
             if options.Video
                 LKA.Vision.Bench.VideoFile = fullfile(options.OutDir, [tag '.mp4']);
             end
+            LKA.Vision.Bench.RawVideoFile = '';
+            if options.RawVideo
+                LKA.Vision.Bench.RawVideoFile = fullfile(options.OutDir, [tag '_raw.mp4']);
+            end
             LKA.Vision.Bench.DatasetDir = '';
             if options.Dataset
                 LKA.Vision.Bench.DatasetDir = fullfile(root, 'data', 'vision_datasets', tag);
             end
             assignin('base', 'LKA', LKA);
             fprintf('[LKA vision] %-16s camera %-8s ... ', sc.Name, LKA.Vision.Detector);
+            lka_monitor_publish('start', struct('Name', tag, 'Kind', 'sim', 'Detector', LKA.Vision.Detector, ...
+                'Gpu', LKA.Vision.UseGpu && canUseGPU(), 'OutDir', options.OutDir, ...
+                'Frames', round(sc.P.StopTime / LKA.Ts), 'Duration', sc.P.StopTime, ...
+                'Phase', 'closed-loop simulation (Unreal camera)'));
             t0 = tic;
             simOut = sim(mdl);
             res = lka_extract_results(simOut, sc, LKA, vehicle);
@@ -74,6 +84,8 @@ function results = run_lka_vision(options)
             kpi.WallClock_s = toc(t0);
             fprintf('%5.0f s | max|lat| %.3f m | in lane %5.1f %% | %.1f ms/frame\n', kpi.WallClock_s, ...
                 kpi.MaxLatOffset_m, 100 * kpi.InLaneRatio, kpi.VisionMsMean);
+            lka_monitor_publish('done', struct('OutDir', options.OutDir, 'MaxLatOffset_m', kpi.MaxLatOffset_m, ...
+                'RmsLatOffset_m', kpi.RmsLatOffset_m, 'InLaneRatio', kpi.InLaneRatio, 'MeanMs', kpi.VisionMsMean));
             plot_lka_results(res, kpi, options.OutDir);
             close all
             results(end + 1) = struct('res', res, 'kpi', kpi); %#ok<AGROW>

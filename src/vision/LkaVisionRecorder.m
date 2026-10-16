@@ -5,6 +5,10 @@ classdef LkaVisionRecorder < matlab.System
 % LKA state (LkaInfoBus.State). The video path is FileName, or Vision.Bench.VideoFile when
 % FileName is empty (MATLAB System blocks take char properties literally, so Simulink
 % models leave FileName empty and set LKA.Vision.Bench.VideoFile). No path: disabled.
+% Vision.Bench.RawVideoFile (optional) also records the unannotated camera frames, e.g. as
+% a test input for run_lka_on_video with known ground truth.
+% Vision.Monitor (default true) publishes every frame to the live dashboard
+% (lka_monitor_publish; the annotated frame is only drawn when it is actually sent).
 
     properties (Nontunable)
         Vision = struct()     % LKA.Vision
@@ -14,7 +18,10 @@ classdef LkaVisionRecorder < matlab.System
 
     properties (Access = private)
         Writer
+        RawWriter
         Cam
+        Monitor = false
+        Count = 0
     end
 
     methods
@@ -26,6 +33,19 @@ classdef LkaVisionRecorder < matlab.System
     methods (Access = protected)
         function setupImpl(obj)
             obj.Writer = [];
+            obj.RawWriter = [];
+            obj.Count = 0;
+            obj.Monitor = ~isfield(obj.Vision, 'Monitor') || obj.Vision.Monitor;
+            if obj.Monitor
+                obj.Cam = lka_camera_model(obj.Vision.Camera, obj.Vision.Bev);
+            end
+            if isfield(obj.Vision, 'Bench') && isfield(obj.Vision.Bench, 'RawVideoFile') ...
+                    && ~isempty(obj.Vision.Bench.RawVideoFile)
+                obj.RawWriter = VideoWriter(obj.Vision.Bench.RawVideoFile, 'MPEG-4');
+                obj.RawWriter.FrameRate = round(1 / obj.Ts);
+                obj.RawWriter.Quality = 95;
+                open(obj.RawWriter);
+            end
             file = obj.FileName;
             if isempty(file) && isfield(obj.Vision, 'Bench')
                 file = obj.Vision.Bench.VideoFile;
@@ -37,24 +57,41 @@ classdef LkaVisionRecorder < matlab.System
             if ~isempty(folder) && ~isfolder(folder)
                 mkdir(folder);
             end
-            obj.Cam = lka_camera_model(obj.Vision.Camera, obj.Vision.Bev);
+            if isempty(obj.Cam)
+                obj.Cam = lka_camera_model(obj.Vision.Camera, obj.Vision.Bev);
+            end
             obj.Writer = VideoWriter(file, 'MPEG-4');
             obj.Writer.FrameRate = round(1 / obj.Ts);
             open(obj.Writer);
         end
 
         function stepImpl(obj, img, preview, sensor, steerDeg, state)
-            if isempty(obj.Writer)
-                return
+            if ~isempty(obj.RawWriter)
+                writeVideo(obj.RawWriter, img);
             end
-            hud = struct('SteerDeg', double(steerDeg), 'State', double(state));
-            writeVideo(obj.Writer, lka_annotate_frame(img, preview, sensor, hud, obj.Cam));
+            obj.Count = obj.Count + 1;
+            hud = struct('SteerDeg', double(steerDeg), 'State', double(state), 'Time', (obj.Count - 1) * obj.Ts);
+            if ~isempty(obj.Writer)
+                writeVideo(obj.Writer, lka_annotate_frame(img, preview, sensor, hud, obj.Cam));
+            end
+            if obj.Monitor
+                s = struct('Time', hud.Time, 'Frame', obj.Count, ...
+                    'Left', sensor.Left.LateralOffset * (sensor.Left.Strength > 0), 'LeftOk', sensor.Left.Strength > 0, ...
+                    'Right', sensor.Right.LateralOffset * (sensor.Right.Strength > 0), 'RightOk', sensor.Right.Strength > 0, ...
+                    'Centre', 0.5 * (sensor.Left.LateralOffset + sensor.Right.LateralOffset), ...
+                    'Steer', hud.SteerDeg, 'State', hud.State);
+                lka_monitor_publish('sample', s, @() lka_annotate_frame(img, preview, sensor, hud, obj.Cam));
+            end
         end
 
         function releaseImpl(obj)
             if ~isempty(obj.Writer)
                 close(obj.Writer);
                 obj.Writer = [];
+            end
+            if ~isempty(obj.RawWriter)
+                close(obj.RawWriter);
+                obj.RawWriter = [];
             end
         end
 

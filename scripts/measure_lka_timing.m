@@ -48,12 +48,12 @@ function T = measure_lka_timing(options)
             prob = p;
         end
     end
-    bev = transformImage(cam.Bev, prob);
-    rows(end + 1, :) = {'bird''s-eye warp (transformImage)', timeit(@() transformImage(cam.Bev, prob), options.Repeats)};
+    bev = lka_bev_warp(cam, prob);
+    rows(end + 1, :) = {'bird''s-eye warp (lka_bev_warp)', timeit(@() lka_bev_warp(cam, prob), options.Repeats)};
     rows(end + 1, :) = {'lane search + robust fit (lka_vision_lane_step)', ...
         timeit(@() lka_vision_lane_step(bev, cam, V, lka_vision_state_init(V), V.Ts), options.Repeats)};
     sensor = lka_vision_lane_step(bev, cam, V, lka_vision_state_init(V), V.Ts);
-    preview = imresize(bev, V.PreviewSize);
+    preview = imresize(max(bev, [], 3), V.PreviewSize);
     rows(end + 1, :) = {'video annotation (recorder only)', ...
         timeit(@() lka_annotate_frame(img, preview, sensor, struct('SteerDeg', 0, 'State', 2), cam), options.Repeats)};
 

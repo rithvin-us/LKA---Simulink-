@@ -7,10 +7,25 @@ function det = lka_detector_classic(~)
 % benchmark baseline.
     det.Name = 'classic (white/yellow local contrast)';
     det.Backend = 'matlab';
+    det.OnGpu = false;
+    det.Pages = 1;
     det.MaxRange = inf;                    % trusted look-ahead [m from the rear axle]
     det.Detect = @detect;
+    det.DetectBatch = @detectBatch;
 
-    function prob = detect(rgb)
+    function [probs, info] = detectBatch(rgbs)
+        n = size(rgbs, 4);
+        probs = zeros(size(rgbs, 1), size(rgbs, 2), 1, n, 'single');
+        info = repmat(struct('Lanes', {{}}, 'Ids', zeros(1, 0), 'Ms', 0), n, 1);
+        for k = 1:n
+            t0 = tic;
+            probs(:, :, 1, k) = detect(rgbs(:, :, :, k));
+            info(k).Ms = 1000 * toc(t0);
+        end
+    end
+
+    function [prob, info] = detect(rgb)
+        info = struct('Lanes', {{}}, 'Ids', zeros(1, 0), 'Ms', 0);
         hsv = rgb2hsv(rgb);
         val = hsv(:, :, 3);
         sat = hsv(:, :, 2);
