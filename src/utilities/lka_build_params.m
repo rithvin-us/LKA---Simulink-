@@ -211,4 +211,11 @@ function LKA = lka_build_params(profile, vehicle, sensor)
     Cosim.YawOffsetDeg   = 0;            % Added to skeleton CurrPose yaw before use [deg]
     Cosim.LkaModes       = [1 2];        % Skeleton Mode values in which the LKA steers (LKA, Endurance)
     LKA.Cosim = Cosim;
+
+    % ---------------------------------------- Camera lane detector (lka_vision_params.m)
+    root = fileparts(fileparts(fileparts(mfilename('fullpath'))));
+    LKA.Vision = lka_vision_params(profile);
+    LKA.Vision.DetectorDir = fullfile(root, 'models', 'perception');
+    LKA.Vision.Bench.ScenePath = fullfile(root, 'data', 'scenes', 'LKA', 'LKA.usd');
+    LKA.Vision.Ts = LKA.Ts;
 end
