@@ -21,6 +21,7 @@ function testNominalTrack(testCase)
     k = kpiOf(testCase, 'S1_Nominal');
     verifyRulebookAndComfort(testCase, k);
     testCase.verifyLessThan(k.MaxLatOffset_m, 0.3);
+    testCase.verifyEqual(k.RulebookScore, k.TimeInLane_s / k.TotalTime_s^2, 'RelTol', 1e-12);
 end
 
 function testSpeedLimitTrack(testCase)

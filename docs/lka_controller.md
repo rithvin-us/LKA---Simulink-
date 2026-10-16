@@ -259,8 +259,11 @@ section 6.
 `scripts/integrate_lka_into_skeleton.m` adds the root subsystem
 "LKA (Lane Keeping Assist)" to the competition model:
 - **Inputs:** the vehicle state, the closest route point and the route curvature, taken from `Subsystem2`.
-- **Skeleton Pose Adapter:** converts the CG pose in degrees to the rear-axle pose in radians, and derives yaw rate from heading.
-- **Emulated detector:** Virtual Lane Sensor.
+- **Skeleton Pose Adapter:** converts the CG pose in degrees to the rear-axle pose in radians (for the emulated
+  sensor and metrics only). The controller's yaw rate is the vehicle's `CurrYawRate` (`LKA.Cosim.YawRateSign`).
+- **Lane Source** (variant subsystem, `LKA_LANE_SOURCE`): **1 = camera lane detector** on the skeleton's
+  Simulation 3D Camera (submission configuration); 2 = emulated Virtual Lane Sensor (development only).
+- **Ego Sensors:** wheel-speed and gyro models (scale error, bias, noise) in front of the controller.
 - **Controller:** LKA_Controller with the `skeleton` profile (L = 3.0 m).
 - **Output:** a road-wheel angle in degrees, positive to the left, into `Subsystem2/Controller_SteerCmd`.
 
@@ -334,9 +337,9 @@ anticipates the next arc. On the straights the output alternates around ±1000 m
    compiles cleanly with a substituted start pose. The first co-simulation run
    should check the sign of the skeleton pose and yaw (`LKA.Cosim.YawOffsetDeg`)
    and that the route runs along the lane centre.
-2. **The lane detector is emulated.** Next, port the Asterix sliding-window
-   detector to MATLAB on the skeleton's Simulation 3D Camera (1280×720,
-   f = 1109 px) and fill `LaneSensorBus`. Nothing downstream changes.
+2. **Camera lane detection is in place** (section 8). Still open: the YOLOP and
+   team UFLDv2 runs need the ONNX importer add-on and the team's ONNX export; the
+   skeleton camera extrinsics (hood centre) are checked in the RoadRunner run.
 3. **The emulated detector reports curvature at the vehicle position only.** It
    gives no preview of curves still ahead in the camera view. A real
    polynomial-fit detector would add preview, which helps pure pursuit and MPC
@@ -345,3 +348,67 @@ anticipates the next arc. On the straights the output alternates around ±1000 m
    240 kg) differs from the 2025 CarMaker Baja (L = 1.341 m, about 347 kg).
 5. **The MPC's QP solve is slower to simulate** than pure pursuit. A
    referenced-model rebuild takes about 60 s; after that, runs are fast.
+
+## 8. Camera lane detection (rule I.2.3)
+
+The aBAJA 2027 rulebook (I.2.3) does not allow ground-truth or road-state sensors as
+inputs to the final algorithm. The submission configuration therefore gets the lane
+from the camera:
+
+```
+Simulation 3D Camera (1280x720, f = 1109 px)
+  -> detector (LKA.Vision.Detector: 'yolop' | 'cnn' (team UFLDv2) | 'classic')
+  -> lane-line probability map (one contract for every detector, models/perception/README.md)
+  -> metric bird's-eye view (monoCamera / birdsEyeView, 5 cm cells, 30 m ahead, +-6 m)
+  -> sliding-window search per line (continuity prior +-0.45 m, cold window +-1.3 m)
+  -> robust (Huber IRLS) polynomial fit in metres -> LaneSensorBus (rear-axle clothoid)
+  -> one frame processing latency -> LKA_Controller (unchanged)
+```
+
+**Camera model.** For pitch θ (down positive), height h and camera position
+(x_c, y_c), a pixel (u, v) gives the ray d = o + x_n·r + y_n·d_n with
+o = (cos θ, 0, −sin θ), d_n = (−sin θ, 0, −cos θ), r = (0, −1, 0),
+x_n = (u − c_x)/f, y_n = (v − c_y)/f. It meets the flat road at p = c + (h/−d_z)·d.
+`monoCamera` implements exactly this; `test_vision_camera.m` checks it against the closed form.
+
+**Main parameters** (`src/vision/lka_vision_params.m`):
+
+| Group | Parameter | Value |
+|---|---|---|
+| Bird's-eye | resolution / range / half-width | 0.05 m / 30 m / 6 m |
+| Search | slice / cold window / warm window / max gap | 1 m / ±1.3 m / ±0.45 m / 8 m |
+| Fit | linear < 8 m span ≤ quadratic < 15 m ≤ cubic, Huber δ | 0.08 m |
+| Tracking | prior age / width re-seed / width tolerance | 0.3 s / 10 frames / ±0.6 m |
+
+**Fixes over the 2025 pipeline** (`docs/adas2026_audit.md`):
+- a calibrated, metric bird's-eye view instead of the hand-tuned trapezoid;
+- a distance-gated search window;
+- only direct fits become the next prior;
+- width re-seeding;
+- one-line operation and coasting left to the existing Kalman tracker and supervisor.
+
+**Accuracy on synthetic frames:** offset 1–3 cm, heading ≤ 0.4°, 8 ms per frame.
+
+**Camera-in-the-loop on the official track** (`LKA_Vision_TestBench`, Unreal, `LKA.usd`;
+S1, 0 → 30 km/h, pure pursuit, classic detector):
+
+| Max lateral offset | RMS | Min tyre-to-line margin | In lane | Both lines found | Detector |
+|---|---|---|---|---|---|
+| 0.079 m | 0.043 m | 0.85 m | 100 % | 99.9 % of frames | 31.6 ms/frame |
+
+**Detector benchmark** (241 recorded official-track frames, `run_detector_benchmark`):
+
+| Detector | Lines found L / R | Boundary error at 5 / 10 / 20 m | Heading error | Time |
+|---|---|---|---|---|
+| classic | 99.6 % / 99.6 % | 5 / 7 / 30 cm | 0.88° | 16.5 ms |
+
+The ground truth is the OpenDRIVE lane border. On this track the paint sits off it: the edge
+line is about 0.13 m outside, and the inner stripe of the double centre line about 0.15 m
+inside. Part of the 20 m error is therefore common to every detector, and the camera keeps
+the car centred between the painted lines. The USD export carries no semantic lane class,
+so F1/IoU are only computed on the synthetic dataset. YOLOP and the team UFLDv2 rows are added
+once the ONNX importer add-on and the team's export are available.
+
+**Known model limitation.** A single polynomial fitted across a straight-to-arc transition
+biases the extrapolated heading at the rear axle (about −1.3° with an arc 22 m ahead). The
+near-range geometry that pure pursuit uses stays accurate, as the closed-loop result above shows.

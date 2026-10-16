@@ -1,11 +1,11 @@
 function kpi = lka_compute_kpis(res)
 % LKA_COMPUTE_KPIS Lane-keeping key performance indicators of one run.
 %
-% Rulebook (aBAJA 2027 Rev00, K.2): any tyre touching the line = outside the lane;
-% all four tyres out at any instant, a manual take-over or > 33 km/h = DQ; the
-% score grows with the share of time spent inside the lane. The exact score
-% formula did not survive PDF text extraction, so InLaneRatio = T_in / T_total
-% is reported as the score proxy.
+% Rulebook (aBAJA 2027 Rev00, K.2.4-K.2.5): any tyre touching the line = outside the lane;
+% all four tyres out at any instant, a manual take-over or > 33 km/h = DQ. Score
+% S = T_inside_lane / T_total_time^2 (scaled to 150 points by the organisers), so faster
+% runs score higher as long as the car stays in the lane. TotalTime_s here is the time
+% from moving off to the end of the run (the start/stop lines are not modelled).
 %
 % Comfort / regulation: peak lateral acceleration and the 0.5 s moving-average
 % lateral jerk (UNECE R79 ACSF B1: 3 m/s^2, 5 m/s^3).
@@ -31,6 +31,7 @@ function kpi = lka_compute_kpis(res)
     kpi.TotalTime_s = numel(tMove) * dt;
     kpi.TimeInLane_s = sum(gt.inLane(moving)) * dt;
     kpi.InLaneRatio = kpi.TimeInLane_s / kpi.TotalTime_s;
+    kpi.RulebookScore = kpi.TimeInLane_s / kpi.TotalTime_s^2;   % S = T_in / T_total^2 [1/s]
     kpi.AnyWheelOut_s = sum(~gt.inLane(moving)) * dt;
     kpi.AllWheelsOut = any(all(lka_wheels_out(gt.margins(moving, :), res.vehicle.trackWidth), 2));
 
