@@ -218,4 +218,15 @@ function LKA = lka_build_params(profile, vehicle, sensor)
     LKA.Vision.DetectorDir = fullfile(root, 'models', 'perception');
     LKA.Vision.Bench.ScenePath = fullfile(root, 'data', 'scenes', 'LKA', 'LKA.usd');
     LKA.Vision.Ts = LKA.Ts;
+
+    % ---------------------------------------- Ego-motion sensors (rule I.2.3: realistic sensors)
+    % Assumed automotive-grade values: wheel-speed scale error from tyre radius, MEMS gyro
+    % residual bias after start-up calibration and white noise per 20 Hz sample.
+    EgoSen.SpeedScaleErr   = 0.01;           % [-]
+    EgoSen.SpeedNoiseStd   = 0.05;           % [m/s]
+    EgoSen.SpeedQuant      = 0.01;           % [m/s]
+    EgoSen.YawRateBias     = deg2rad(0.2);   % [rad/s]
+    EgoSen.YawRateNoiseStd = deg2rad(0.3);   % [rad/s]
+    EgoSen.Seed            = [2101 2102];
+    LKA.EgoSen = EgoSen;
 end
