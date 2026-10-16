@@ -22,6 +22,9 @@ function det = lka_detector_ufld(sidecarFile, useGpu)
     mean3 = reshape(single(cfg.mean), 1, 1, []);
     std3 = reshape(single(cfg.std), 1, 1, []);
     useGpu = useGpu && canUseGPU();
+    if useGpu
+        net = dlupdate(@gpuArray, net);      % weights to the GPU once, not on every predict
+    end
     nOut = numel(net.OutputNames);
     det.Name = cfg.name;
     det.Detect = @detect;

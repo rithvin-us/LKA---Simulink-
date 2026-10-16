@@ -10,7 +10,10 @@ function lanes = lka_ufld_decode(o, cfg, imgSize)
 % column anchors exist. Position = expectation of the softmax over +-local_width cells
 % around the arg-max cell, + 0.5, scaled by (num_grid - 1) to the image size.
 % Output: cell array, one [u v p k] matrix per lane: MATLAB pixel coordinates (u, v),
-% existence probability p, anchor index k.
+% existence probability p, anchor index k. pred2coords returns 0-based continuous pixel
+% positions; + 0.5 converts them to MATLAB's 1-based pixel-centre convention.
+% The loc heads must be raw logits (as exported by deploy/pt2onnx.py): the local
+% window softmax is taken here.
     H = imgSize(1);
     W = imgSize(2);
     rowAnchor = linspace(cfg.row_anchor_px(1), cfg.row_anchor_px(2), cfg.num_cls_row) / cfg.anchor_image_height;

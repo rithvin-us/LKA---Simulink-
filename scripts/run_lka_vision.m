@@ -81,5 +81,16 @@ function results = run_lka_vision(options)
     end
     assignin('base', 'LKA', LKA0);
     if ~isfolder(options.OutDir), mkdir(options.OutDir); end
-    writetable(struct2table(arrayfun(@(x) x.kpi, results)), fullfile(options.OutDir, 'lka_vision_kpis.csv'));
+    % merge with earlier runs: one row per (scenario, controller, detector), newest wins
+    csv = fullfile(options.OutDir, 'lka_vision_kpis.csv');
+    T = struct2table(arrayfun(@(x) x.kpi, results));
+    T.Scenario = string(T.Scenario); T.Controller = string(T.Controller); T.Detector = string(T.Detector);
+    if isfile(csv)
+        old = readtable(csv, 'TextType', 'string');
+        if isequal(sort(old.Properties.VariableNames), sort(T.Properties.VariableNames))
+            keep = ~ismember(old.Scenario + "|" + old.Controller, T.Scenario + "|" + T.Controller);
+            T = [old(keep, T.Properties.VariableNames); T];
+        end
+    end
+    writetable(T, csv);
 end
