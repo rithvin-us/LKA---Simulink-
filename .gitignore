@@ -59,3 +59,7 @@ data/scenes/LKA/sim3dSemanticTypes.xml
 
 # Live dashboard telemetry (lka_monitor_publish)
 results/monitor/
+
+# Python bytecode
+__pycache__/
+*.pyc
