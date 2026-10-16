@@ -95,12 +95,13 @@ camera (not a phone), give its field of view and mount (item 1) if known.
 wheelbase, and the test bench simulates the vehicle with mass, CG and tyre data. Our file says
 wheelbase 1.45 m and 240 kg; the 2025 CarMaker Baja had 1.341 m and about 347 kg.
 
-**How.** Measure or take from the CAD / build sheet:
-- wheelbase, front and rear track width;
-- mass with driver, CG distance from the front axle;
-- maximum road-wheel steering angle left / right;
-- steering speed of the actuator (deg/s) and its delay;
-- tyre size and type.
+**How.** Fill in the sheet **[`vehicle_measurements.md`](vehicle_measurements.md)**
+(31 items with the current values and how to measure each one). The most important:
+- wheelbase;
+- maximum road-wheel angle left and right;
+- steering actuator speed, delay and centre offset;
+- camera position;
+- mass and axle loads.
 
 **Give back.** The values, or edit `data/parameters/vehicle_params.m` directly. Then run
 `run_lka_mil()` and `run_lka_vision(Detectors={'cnn'})` and compare with
