@@ -63,3 +63,6 @@ results/monitor/
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Local check reports and their video results (run_lka_checks)
+results/checks/

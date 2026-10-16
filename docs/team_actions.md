@@ -10,6 +10,24 @@ what to hand back.
 
 ## P1 — before the virtual round
 
+### 0. Re-run the college videos with the tight-track fix (new, 2026-10-16)
+
+**Why.** The lane in the annotated college videos stayed almost straight while the painted lane
+bends at R 3-8 m: every camera setting was tuned for the official track (`docs/lka_controller.md`
+§9.1). The fix is in the code, checked with a Python replica of the camera chain and in Octave, but
+it has not run in MATLAB with the team CNN yet.
+
+**How.**
+1. `run_lka_checks()`: all unit tests must pass, including the new `test_vision_tight_track`.
+2. `run_lka_on_test_videos()` (the tight profile is the default now).
+3. Open `test_res/summary.csv`: `StraightAlarm` must be false and `ShapeErrorP90_m` below 0.25 m
+   for every clip. Watch each `lka_video_annotated.mp4`: the green and blue lines must sit on the
+   painted lines through the bends.
+4. Check the official track is unchanged: `run_lka_mil(Scenarios={'S1_Nominal'}, Controllers=1)` and
+   `run_lka_vision(Detectors={'cnn'})` must match `docs/lka_controller.md` §6 and §8.
+
+**Give back.** The new `test_res/summary.csv` and the `results/checks/lka_checks_*.md` report.
+
 ### 1. Measure the camera that films the track videos
 
 **Why.** A single camera cannot tell a narrow lane seen from low down from a wide lane seen
