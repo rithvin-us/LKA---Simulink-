@@ -67,7 +67,6 @@ function build_lka_vision_bench()
     end
 
     lka_add_vision_detector(mdl, 'Vision Lane Detector', [1780 840 1960 960]);
-    add_block('simulink/Sinks/Terminator', [mdl '/Semantic Sink'], 'Position', [1780 990 1800 1010]);
 
     ln(mdl, 'Vehicle Dynamics (Baja single-track)/2', 'Unreal Rate/1');
     ln(mdl, 'Unreal Rate/1', 'Pose To Unreal/1');
@@ -75,8 +74,32 @@ function build_lka_vision_bench()
         ln(mdl, sprintf('Pose To Unreal/%d', k), sprintf('Ego Vehicle (Unreal)/%d', k));
     end
     ln(mdl, 'LKA Camera/1', 'Vision Lane Detector/1');
-    ln(mdl, 'LKA Camera/2', 'Semantic Sink/1');
     ln(mdl, 'Vision Lane Detector/1', 'LKA Controller/1');
+
+    % ---------------- dataset recording (development / validation only, rule I.2.3)
+    gtb = [mdl '/Ground Truth Boundaries (dev only)'];
+    add_block('simulink/User-Defined Functions/MATLAB Function', gtb, 'Position', [1540 1000 1700 1100]);
+    ch = sfroot().find('-isa', 'Stateflow.EMChart', 'Path', gtb);
+    ch.Script = strjoin({
+        'function [gtLeft, gtRight] = fcn(rearPose, centerPose, curv, width)'
+        '% True ego-lane boundaries at the rear axle (benchmark ground truth)'
+        '[gtLeft, gtRight] = lka_lane_geometry(rearPose, centerPose, curv(1), curv(2), width);'}, newline);
+    logger = [mdl '/Frame Logger (dev only)'];
+    add_block('simulink/User-Defined Functions/MATLAB System', logger, 'System', 'LkaFrameLogger', ...
+        'Position', [1780 990 1960 1110]);
+    set_param(logger, 'Vision', 'LKA.Vision', 'Ts', 'LKA.Ts');   % folder: LKA.Vision.Bench.DatasetDir
+    for p = 1:3
+        delete_line(mdl, sprintf('Lane Geometry (ground truth)/%d', p), ...
+            sprintf('Lane Geometry (ground truth) Term %d/1', p));
+        delete_block(sprintf('%s/Lane Geometry (ground truth) Term %d', mdl, p));
+        ln(mdl, sprintf('Lane Geometry (ground truth)/%d', p), sprintf('Ground Truth Boundaries (dev only)/%d', p + 1));
+    end
+    ln(mdl, 'Unreal Rate/1', 'Ground Truth Boundaries (dev only)/1');
+    ln(mdl, 'LKA Camera/1', 'Frame Logger (dev only)/1');
+    ln(mdl, 'LKA Camera/2', 'Frame Logger (dev only)/2');
+    ln(mdl, 'Unreal Rate/1', 'Frame Logger (dev only)/3');
+    ln(mdl, 'Ground Truth Boundaries (dev only)/1', 'Frame Logger (dev only)/4');
+    ln(mdl, 'Ground Truth Boundaries (dev only)/2', 'Frame Logger (dev only)/5');
 
     % ---------------- wheel-speed and gyro models in front of the controller
     delete_line(mdl, 'Speed To Controller Rate/1', 'LKA Controller/2');

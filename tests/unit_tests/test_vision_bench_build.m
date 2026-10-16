@@ -31,7 +31,8 @@ function testBenchBuildsAndCompiles(testCase)
     mdl = 'LKA_Vision_TestBench';
     testCase.addTeardown(@() close_system(mdl, 0));
     for b = {'LKA Camera', 'Vision Lane Detector', 'Ego Vehicle (Unreal)', 'Pose To Unreal', ...
-             'Simulation 3D Scene Configuration', 'Vision Recorder', 'Ego Sensors (wheel speed + IMU)'}
+             'Simulation 3D Scene Configuration', 'Vision Recorder', 'Ego Sensors (wheel speed + IMU)', ...
+             'Frame Logger (dev only)', 'Ground Truth Boundaries (dev only)'}
         testCase.verifyGreaterThan(getSimulinkBlockHandle([mdl '/' b{1}]), 0, b{1});
     end
     testCase.verifyEqual(getSimulinkBlockHandle([mdl '/Virtual Lane Sensor']), -1);
