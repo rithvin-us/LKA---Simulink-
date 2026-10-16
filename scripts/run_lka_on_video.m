@@ -102,8 +102,8 @@ function out = run_lka_on_video(videoFile, options)
         end
         [C, cal] = lka_autocalibrate_camera(probs, C0, V, LaneWidth=options.LaneWidth);
         W = cal.LaneWidth;                       % lane width for the search and plausibility gates
-        V.Track.WidthInit = W; V.Track.WidthMin = 0.5 * W; V.Track.WidthMax = 2 * W;   % lanes widen in bends
-        LKA.Lane.WidthNominal = W; LKA.Lane.WidthMin = 0.5 * W; LKA.Lane.WidthMax = 2 * W;
+        LKA = lka_set_lane_width(LKA, W, MinFactor=0.5, MaxFactor=2);   % lanes widen in bends
+        V.Track = LKA.Vision.Track;
         fprintf('[LKA video] auto-calibrated camera: pitch %.1f deg, height %.2f m (f %.0f px), lane width %.2f m\n', ...
             C.PitchDeg, C.Height, C.FocalLength(1), W);
         readNext = makeReader(VideoReader(videoFile), options.StartTime, tEnd, LKA.Ts, options.StereoEye);
@@ -126,6 +126,9 @@ function out = run_lka_on_video(videoFile, options)
         nb = 1 + 7 * det.OnGpu;
     end
     shortName = detectorLabel(det);
+    if nb > 1
+        det.DetectBatch(zeros([C.ImageSize 3 nb], 'uint8'));      % trace the batched network once
+    end
     fprintf('[LKA video] %s, %d frame(s) per network call, warp/odometry on the %s\n', ...
         shortName, nb, ternary(useGpu, 'GPU', 'CPU'));
     state = lka_vision_state_init(V);

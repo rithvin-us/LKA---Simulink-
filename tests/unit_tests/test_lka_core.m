@@ -273,3 +273,15 @@ function testWheelsOutStraddlingAndCentred(testCase)
     [~, ~, m1] = lka_ground_truth_metrics([0 1.2 0], [0 0 0], [0 0], 3.5, 0.125, v);
     testCase.verifyEqual(lka_wheels_out(m1, v.trackWidth), [true false true false]);
 end
+
+function testSetLaneWidth(testCase)
+    % Track lane width: controller fusion band and camera lane-step band move together
+    LKA = testCase.TestData.LKA;
+    testCase.verifyEqual(LKA.Lane.WidthNominal, 3.5);
+    L2 = lka_set_lane_width(LKA, 2.0);
+    testCase.verifyEqual([L2.Lane.WidthNominal L2.Lane.WidthMin L2.Lane.WidthMax], [2 2 * 2.5 / 3.5 2 * 5 / 3.5], 'AbsTol', 1e-12);
+    testCase.verifyEqual([L2.Vision.Track.WidthInit L2.Vision.Track.WidthMin L2.Vision.Track.WidthMax], ...
+        [L2.Lane.WidthNominal L2.Lane.WidthMin L2.Lane.WidthMax]);
+    L3 = lka_set_lane_width(LKA, 2.0, MinFactor=0.5, MaxFactor=2);
+    testCase.verifyEqual([L3.Lane.WidthMin L3.Lane.WidthMax], [1 4]);
+end

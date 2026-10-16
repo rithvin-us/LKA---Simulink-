@@ -7,6 +7,8 @@
 %                (models/LKA_Controller.slx), built by lka_build_params.m.
 %                Profile chosen by base variable lkaProfile ('baja' default,
 %                'skeleton' for the aBaja2026.slx RoadRunner co-simulation).
+%                Optional base variable lkaLaneWidth [m]: lane width of another track
+%                (default 3.5 m, the official LKA track; lka_set_lane_width).
 %   controller - legacy gains used by scripts/run_baseline_simulation.m and
 %                the script-based Stanley / pure pursuit functions.
 %
@@ -20,6 +22,9 @@ if ~exist('lkaProfile', 'var')
     lkaProfile = 'baja';
 end
 LKA = lka_build_params(lkaProfile, vehicle, sensor);
+if exist('lkaLaneWidth', 'var') && ~isempty(lkaLaneWidth)
+    LKA = lka_set_lane_width(LKA, lkaLaneWidth);
+end
 
 % Lane source of the competition model (variant control of "Lane Source" in aBaja2026.slx):
 %   1 = camera lane detector (submission, rule I.2.3)   2 = emulated sensor (development only)

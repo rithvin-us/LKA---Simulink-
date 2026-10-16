@@ -62,7 +62,7 @@ function testRecorderWritesVideo(testCase)
     img = lka_render_lane_scene(cam, lka_default_scene());
     for k = 1:3
         [sensor, preview] = det(img);
-        rec(img, preview, sensor, 0.5, uint8(2));
+        rec(img, preview, sensor, 0.5, uint8(2), 8.3, 120);
     end
     release(rec); release(det);
     testCase.verifyTrue(isfile(f));

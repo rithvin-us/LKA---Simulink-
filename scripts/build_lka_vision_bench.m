@@ -126,6 +126,8 @@ function build_lka_vision_bench()
     ln(mdl, 'Steer Deg/1', 'Vision Recorder/4');
     ln(mdl, 'LKA Controller/3', 'Select State/1');
     ln(mdl, 'Select State/1', 'Vision Recorder/5');
+    ln(mdl, [es '/1'], 'Vision Recorder/6');                      % measured speed [m/s]
+    ln(mdl, 'LKA Controller/2', 'Vision Recorder/7');             % turning radius [m]
     terminate(mdl, 'Vision Lane Detector', 3);
 
     % ---------------- logging

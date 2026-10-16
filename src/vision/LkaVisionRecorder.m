@@ -2,7 +2,7 @@ classdef LkaVisionRecorder < matlab.System
 % LKAVISIONRECORDER Writes the annotated LKA camera video (lka_annotate_frame).
 %
 % Inputs: camera image, bird's-eye preview, LaneSensorBus, steering command [deg, + left],
-% LKA state (LkaInfoBus.State). The video path is FileName, or Vision.Bench.VideoFile when
+% LKA state (LkaInfoBus.State), measured speed [m/s], commanded turning radius [m]. The video path is FileName, or Vision.Bench.VideoFile when
 % FileName is empty (MATLAB System blocks take char properties literally, so Simulink
 % models leave FileName empty and set LKA.Vision.Bench.VideoFile). No path: disabled.
 % Vision.Bench.RawVideoFile (optional) also records the unannotated camera frames, e.g. as
@@ -69,12 +69,14 @@ classdef LkaVisionRecorder < matlab.System
             open(obj.Writer);
         end
 
-        function stepImpl(obj, img, preview, sensor, steerDeg, state)
+        function stepImpl(obj, img, preview, sensor, steerDeg, state, speed, radius)
             if ~isempty(obj.RawWriter)
                 writeVideo(obj.RawWriter, img);
             end
             obj.Count = obj.Count + 1;
-            hud = struct('SteerDeg', double(steerDeg), 'State', double(state), 'Time', (obj.Count - 1) * obj.Ts);
+            radius = double(radius);
+            hud = struct('SteerDeg', double(steerDeg), 'State', double(state), 'Time', (obj.Count - 1) * obj.Ts, ...
+                'SpeedKmh', 3.6 * double(speed), 'TurnRadius', radius, 'CurvatureCmd', 1 / radius);
             if ~isempty(obj.Writer)
                 writeVideo(obj.Writer, lka_annotate_frame(img, preview, sensor, hud, obj.Cam));
             end
@@ -82,8 +84,8 @@ classdef LkaVisionRecorder < matlab.System
                 s = struct('Time', hud.Time, 'Frame', obj.Count, ...
                     'Left', sensor.Left.LateralOffset * (sensor.Left.Strength > 0), 'LeftOk', sensor.Left.Strength > 0, ...
                     'Right', sensor.Right.LateralOffset * (sensor.Right.Strength > 0), 'RightOk', sensor.Right.Strength > 0, ...
-                    'Centre', 0.5 * (sensor.Left.LateralOffset + sensor.Right.LateralOffset), ...
-                    'Steer', hud.SteerDeg, 'State', hud.State);
+                    'Centre', centre(sensor), 'Steer', hud.SteerDeg, 'State', hud.State, ...
+                    'Speed', hud.SpeedKmh, 'Radius', radius);
                 lka_monitor_publish('sample', s, @() lka_annotate_frame(img, preview, sensor, hud, obj.Cam));
             end
         end
@@ -100,7 +102,7 @@ classdef LkaVisionRecorder < matlab.System
         end
 
         function n = getNumInputsImpl(~)
-            n = 5;
+            n = 7;
         end
 
         function n = getNumOutputsImpl(~)
@@ -116,5 +118,13 @@ classdef LkaVisionRecorder < matlab.System
         function flag = showSimulateUsingImpl
             flag = false;
         end
+    end
+end
+
+function c = centre(sensor)
+% Lane centre from both lines; NaN when one is missing (half an offset would mislead).
+    c = NaN;
+    if sensor.Left.Strength > 0 && sensor.Right.Strength > 0
+        c = 0.5 * (sensor.Left.LateralOffset + sensor.Right.LateralOffset);
     end
 end
