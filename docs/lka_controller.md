@@ -518,6 +518,11 @@ College-track clips (2026-10-16, team CNN, GPU, about 30 ms per frame):
   TuSimple highways, often labels the road edges as the ego lane there, and the driver also
   cuts across the painted lines. Fine-tuning the team model on about 200 labelled frames of
   the college track is the real fix.
+- Tried and rejected: moving every CNN lane point onto the white paint under it and dropping
+  points without paint. In Unreal the closed loop got worse (0.094 m instead of 0.037 m:
+  the double centre line and the paint lying off the lane border), and on clip 12.23.28 both
+  lines were found in 42 % of the frames instead of 60 % (the college kerb is painted white
+  too).
 
 ## 10. Live dashboard
 

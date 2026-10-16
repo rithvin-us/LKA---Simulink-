@@ -26,12 +26,6 @@ function det = lka_detector_classic(~)
 
     function [prob, info] = detect(rgb)
         info = struct('Lanes', {{}}, 'Ids', zeros(1, 0), 'Ms', 0);
-        hsv = rgb2hsv(rgb);
-        val = hsv(:, :, 3);
-        sat = hsv(:, :, 2);
-        hue = hsv(:, :, 1);
-        contrast = val - imboxfilt(val, 41);
-        paint = sat < 0.25 | (hue > 0.10 & hue < 0.19 & sat > 0.35);
-        prob = single(1 ./ (1 + exp(-(contrast .* paint - 0.12) / 0.03)));
+        prob = lka_paint_probability(rgb);
     end
 end
