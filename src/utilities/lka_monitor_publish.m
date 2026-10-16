@@ -4,6 +4,8 @@ function lka_monitor_publish(action, data, frame)
 % Syntax:
 %   lka_monitor_publish('start', info)          new run: info.Name, Kind ('video' | 'sim'),
 %                                               Detector, Gpu, OutDir, Frames, Duration, Phase
+%   lka_monitor_publish('ensure', info)         'start' only when no run is active (e.g. the
+%                                               camera bench started from the Simulink toolbar)
 %   lka_monitor_publish('phase', text)          e.g. 'writing annotated video' (clears the series)
 %   lka_monitor_publish('sample', s)            one frame: struct of scalars (Time, Steer, ...)
 %   lka_monitor_publish('sample', s, frame)     ... with the annotated camera frame (uint8, or a
@@ -25,6 +27,12 @@ function lka_monitor_publish(action, data, frame)
         end
         now_ = posixtime(datetime('now', 'TimeZone', 'UTC'));   % epoch seconds, as Python time.time()
         force = false;
+        if strcmpi(action, 'ensure')
+            if ~isempty(run) && ~strcmp(phase, 'done')
+                return
+            end
+            action = 'start';
+        end
         switch lower(action)
             case 'start'
                 run = data;
@@ -84,10 +92,19 @@ function lka_monitor_publish(action, data, frame)
 end
 
 function writeAtomic(file, writer)
+% The dashboard may hold the target open for a moment (Windows refuses the rename then):
+% retry a few times before giving up on this update.
     [d, n, e] = fileparts(file);
     tmp = fullfile(d, [n '.tmp' e]);
     writer(tmp);
-    movefile(tmp, file, 'f');
+    for attempt = 1:5
+        [ok, msg] = movefile(tmp, file, 'f');
+        if ok
+            return
+        end
+        pause(0.01 * attempt);
+    end
+    error('lka:monitor:rename', '%s', msg);
 end
 
 function writeText(file, txt)

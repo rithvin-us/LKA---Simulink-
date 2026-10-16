@@ -38,6 +38,10 @@ classdef LkaVisionRecorder < matlab.System
             obj.Monitor = ~isfield(obj.Vision, 'Monitor') || obj.Vision.Monitor;
             if obj.Monitor
                 obj.Cam = lka_camera_model(obj.Vision.Camera, obj.Vision.Bev);
+                det = '';
+                if isfield(obj.Vision, 'Detector'), det = obj.Vision.Detector; end
+                lka_monitor_publish('ensure', struct('Name', 'camera bench (Simulink)', 'Kind', 'sim', ...
+                    'Detector', det, 'Phase', 'closed-loop simulation (Unreal camera)'));
             end
             if isfield(obj.Vision, 'Bench') && isfield(obj.Vision.Bench, 'RawVideoFile') ...
                     && ~isempty(obj.Vision.Bench.RawVideoFile)

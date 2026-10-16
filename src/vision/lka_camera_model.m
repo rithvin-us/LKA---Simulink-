@@ -56,5 +56,5 @@ function S = bevSampler(sensor, rowX, colY, imageSize)
     S.Weight = single(wt);
     S.Size = [numel(rowX) numel(colY)];
     S.ImageSize = [h w];
-    S.Key = sprintf('%.17g_', sum(double(S.Index(:, 1))), sum(S.Weight(:, 2)), h, w, S.Size);
+    [~, S.Key] = fileparts(tempname);         % unique per camera model (GPU table cache key)
 end

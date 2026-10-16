@@ -11,14 +11,15 @@ then open http://127.0.0.1:8050 (MATLAB: start_lka_dashboard). It shows
 * finished results: test_res/summary.csv (recorded track videos, with the annotated
   videos and graphs) and results/vision/lka_vision_kpis.csv (closed-loop camera runs).
 
-The server binds to 127.0.0.1 only and serves files only from test_res/, results/ and
+The server binds to 127.0.0.1 only, answers only requests addressed to 127.0.0.1 / localhost
+(Host header check against DNS rebinding) and serves files only from test_res/, results/ and
 docs/ of this repository.
 """
 import argparse
 import csv
 import json
 import mimetypes
-import os
+import re
 import shutil
 import subprocess
 import threading
@@ -36,6 +37,19 @@ GPU_FIELDS = ["name", "utilization.gpu", "memory.used", "memory.total", "tempera
               "power.draw", "clocks.sm", "clocks.max.sm", "pstate"]
 _gpu = {"history": [], "latest": None, "error": None}
 _gpu_lock = threading.Lock()
+_last_good = {}          # live.json / live.jpg bytes of the last successful read
+_RANGE = re.compile(r"^bytes=(\d*)-(\d*)$")
+
+
+def read_live(path):
+    # MATLAB replaces the file by renaming a temporary one; on Windows a read can hit that
+    # moment (PermissionError / missing file): serve the previous copy then.
+    try:
+        data = path.read_bytes()
+        _last_good[path.name] = data
+        return data
+    except OSError:
+        return _last_good.get(path.name)
 
 
 def _num(v):
@@ -136,10 +150,16 @@ class Handler(BaseHTTPRequestHandler):
         size = path.stat().st_size
         ctype = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         rng = self.headers.get("Range")
-        if rng and rng.startswith("bytes="):
-            start_s, _, end_s = rng[6:].partition("-")
-            start = int(start_s) if start_s else 0
-            end = min(int(end_s) if end_s else size - 1, size - 1)
+        if rng:
+            m = _RANGE.match(rng.strip())             # one range only; else 416
+            if not m or (m.group(1) == "" and m.group(2) == ""):
+                self._send(416, b"", ctype, {"Content-Range": "bytes */%d" % size})
+                return
+            if m.group(1) == "":                       # suffix range: last N bytes
+                start, end = max(0, size - int(m.group(2))), size - 1
+            else:
+                start = int(m.group(1))
+                end = min(int(m.group(2)) if m.group(2) else size - 1, size - 1)
             if start > end or start >= size:
                 self._send(416, b"", ctype, {"Content-Range": "bytes */%d" % size})
                 return
@@ -155,24 +175,29 @@ class Handler(BaseHTTPRequestHandler):
         self.do_GET()
 
     def do_GET(self):
+        host = (self.headers.get("Host") or "").lower()
+        port = self.server.server_address[1]
+        if host not in ("127.0.0.1:%d" % port, "localhost:%d" % port):
+            self._send(403, b"forbidden host", "text/plain")
+            return
         url = urlparse(self.path)
         route = unquote(url.path)
         try:
             if route in ("/", "/index.html"):
                 self._file(STATIC / "index.html")
             elif route == "/api/live":
-                f = MONITOR / "live.json"
-                if f.is_file():
-                    data = json.loads(f.read_text(encoding="utf-8"))
+                raw = read_live(MONITOR / "live.json")
+                if raw:
+                    data = json.loads(raw.decode("utf-8"))
                     data["Age"] = time.time() - float(data.get("Updated") or 0)
-                    data["FrameAvailable"] = (MONITOR / "live.jpg").is_file()
+                    data["FrameAvailable"] = (MONITOR / "live.jpg").is_file() or "live.jpg" in _last_good
                 else:
                     data = {"Phase": "no run published yet", "Age": None}
                 self._json(data)
             elif route == "/api/frame":
-                f = MONITOR / "live.jpg"
-                if f.is_file():
-                    self._send(200, f.read_bytes(), "image/jpeg")
+                raw = read_live(MONITOR / "live.jpg")
+                if raw:
+                    self._send(200, raw, "image/jpeg")
                 else:
                     self._send(404, b"no frame", "text/plain")
             elif route == "/api/gpu":

@@ -162,7 +162,7 @@ function out = run_lka_on_video(videoFile, options)
             P = gpuArray(P);
         end
         bev = gather(lka_bev_warp(cam, P));               % rows x cols x pages x m
-        odoChunk = repmat([0 0 0 NaN], m, 1);
+        odoChunk = nan(m, 4);
         if useOdometry
             g = im2single(imgs);
             if useGpu
@@ -223,7 +223,17 @@ function out = run_lka_on_video(videoFile, options)
     else
         speed = hypot(odo(:, 1), odo(:, 2)) ./ dt;
         yawRate = odo(:, 3) ./ dt;
-        speed(1) = speed(min(2, n)); yawRate(1) = yawRate(min(2, n));
+        bad = ~isfinite(speed) | ~isfinite(yawRate);   % first frame, unmatched pairs
+        if all(bad)
+            warning('lka:video:noOdometry', 'Visual odometry found no motion; speed and yaw set to 0.');
+            speed(:) = 0; yawRate(:) = 0;
+        elseif any(bad)
+            speed = fillmissing(speed, 'linear', 'EndValues', 'nearest');
+            yawRate = fillmissing(yawRate, 'linear', 'EndValues', 'nearest');
+            if nnz(bad(2:end)) > 0                    % frame 1 has no predecessor
+                fprintf('[LKA video] odometry: %d of %d frame pairs unmatched, interpolated\n', nnz(bad(2:end)), n - 1);
+            end
+        end
         speed = movmean(movmedian(speed, 5), 5);
         yawRate = movmean(movmedian(yawRate, 5), 5);
         source = "visual odometry";
@@ -231,7 +241,7 @@ function out = run_lka_on_video(videoFile, options)
 
     % ---------------- controller replay on the 20 Hz grid
     tg = (tf(1):LKA.Ts:tf(end))';
-    ig = arrayfun(@(x) find(tf <= x + 1e-9, 1, 'last'), tg);
+    ig = discretize(tg + 1e-9, [tf; inf]);      % latest frame at or before each grid time
     rep = lka_replay_controller(tg, sensors(ig), speed(ig), yawRate(ig), LKA);
     back = @(v) interp1(tg, v, tf, 'previous', 'extrap');
 
@@ -263,6 +273,7 @@ function out = run_lka_on_video(videoFile, options)
         vw.FrameRate = round(1 / median(dt));
         vw.Quality = 90;
         open(vw);
+        closeVideo = onCleanup(@() close(vw));   % finalise the MP4 even when a frame fails
         if options.Monitor
             lka_monitor_publish('phase', 'writing annotated video');
         end
@@ -280,7 +291,7 @@ function out = run_lka_on_video(videoFile, options)
                 lka_monitor_publish('sample', controlSample(T(k, :), k, n), frame);
             end
         end
-        close(vw);
+        clear closeVideo
     end
     if options.Monitor
         lka_monitor_publish('done', struct('OutDir', options.OutDir, 'Frames', n, ...

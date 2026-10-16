@@ -61,7 +61,7 @@ function [deltaCmd, e_fa, theta_e] = stanley_steer_control(vehicleState, pathPoi
 
     % 6. Raw commanded steering angle with optional yaw rate damping
     kappa = 0;
-    if isfield(pathPoint, 'curvature')
+    if isfield(pathPoint, 'curvature') && isfinite(pathPoint.curvature)
         kappa = pathPoint.curvature;
     end
     feedForward = 0;
@@ -72,6 +72,9 @@ function [deltaCmd, e_fa, theta_e] = stanley_steer_control(vehicleState, pathPoi
     deltaRaw = theta_e + crossTrackTerm + yawDamping + feedForward;
 
     % 7. Saturation to mechanical limits
+    if ~isfinite(deltaRaw)
+        deltaRaw = 0;                         % min/max would turn NaN into full lock
+    end
     deltaCmd = max(min(deltaRaw, controllerParams.maxSteerAngle), -controllerParams.maxSteerAngle);
 
 end

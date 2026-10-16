@@ -24,7 +24,8 @@ function m = lka_bev_odometry(bevPrev, bevCur, cam, options)
 % first: both fail on line-dominated road images.)
 %
 % Output (pose of the current frame in the previous one, ISO 8855, rear axle), one value
-% per frame pair (double, on the CPU):
+% per frame pair (double, on the CPU); NaN for a pair that could not be matched (too few
+% textured bands, field of view too narrow), so a failure is never read as standstill:
 %   m.dx, m.dy  displacement [m] (+ forward, + left)
 %   m.dpsi      heading change [rad] (+ left / CCW)
 %   m.Peak      mean correlation peak of the bands (quality)
@@ -41,7 +42,7 @@ function m = lka_bev_odometry(bevPrev, bevCur, cam, options)
         options.Whitening (1,1) double = 0.3
     end
     nPairs = size(bevCur, 3);
-    m = struct('dx', zeros(1, nPairs), 'dy', zeros(1, nPairs), 'dpsi', zeros(1, nPairs), ...
+    m = struct('dx', nan(1, nPairs), 'dy', nan(1, nPairs), 'dpsi', nan(1, nPairs), ...
         'Peak', zeros(1, nPairs), 'BandX', nan(options.Bands, 1), 'BandDx', nan(options.Bands, nPairs));
     dxr = cam.RowX(2) - cam.RowX(1);          % metres per row (negative: row 1 is far)
     dyc = cam.ColY(2) - cam.ColY(1);          % metres per column (negative: column 1 is left)

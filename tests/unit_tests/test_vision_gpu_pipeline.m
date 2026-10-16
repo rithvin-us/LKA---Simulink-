@@ -188,6 +188,12 @@ function testMonitorPublishWritesLiveJson(testCase)
     testCase.verifyEqual(s.Latest.Steer, 3);
     testCase.verifyEqual(s.Series.Steer(:)', [1 2 3]);
     testCase.verifyTrue(isfile(fullfile(fileparts(f), 'live.jpg')));
+    % 'ensure' starts a run only when none is active
+    lka_monitor_publish('ensure', struct('Name', 'second', 'Kind', 'test'));
+    testCase.verifyEqual(jsondecode(fileread(f)).Run.Name, 'second');      % previous one was done
+    lka_monitor_publish('ensure', struct('Name', 'third', 'Kind', 'test'));
+    testCase.verifyEqual(jsondecode(fileread(f)).Run.Name, 'second');      % 'second' still running
+    lka_monitor_publish('done', struct());
 end
 
 % ------------------------------------------------------------------ helpers
