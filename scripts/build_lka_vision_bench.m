@@ -92,7 +92,7 @@ function build_lka_vision_bench()
     rec = [mdl '/Vision Recorder'];
     add_block('simulink/User-Defined Functions/MATLAB System', rec, 'System', 'LkaVisionRecorder', ...
         'Position', [2060 840 2220 960]);
-    set_param(rec, 'Vision', 'LKA.Vision', 'Ts', 'LKA.Ts', 'FileName', 'LKA.Vision.Bench.VideoFile');
+    set_param(rec, 'Vision', 'LKA.Vision', 'Ts', 'LKA.Ts');      % path: LKA.Vision.Bench.VideoFile
     add_block('simulink/Math Operations/Gain', [mdl '/Steer Deg'], 'Gain', '180/pi', 'Position', [1990 1000 2030 1030]);
     add_block('simulink/Signal Routing/Bus Selector', [mdl '/Select State'], 'OutputSignals', 'State', ...
         'Position', [1990 1060 2000 1090]);

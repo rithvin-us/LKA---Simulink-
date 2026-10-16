@@ -2,12 +2,14 @@ classdef LkaVisionRecorder < matlab.System
 % LKAVISIONRECORDER Writes the annotated LKA camera video (lka_annotate_frame).
 %
 % Inputs: camera image, bird's-eye preview, LaneSensorBus, steering command [deg, + left],
-% LKA state (LkaInfoBus.State). Empty FileName disables the recorder.
+% LKA state (LkaInfoBus.State). The video path is FileName, or Vision.Bench.VideoFile when
+% FileName is empty (MATLAB System blocks take char properties literally, so Simulink
+% models leave FileName empty and set LKA.Vision.Bench.VideoFile). No path: disabled.
 
     properties (Nontunable)
         Vision = struct()     % LKA.Vision
         Ts = 0.05             % frame period [s]
-        FileName = ''         % .mp4 path
+        FileName = ''         % .mp4 path (MATLAB use); empty = Vision.Bench.VideoFile
     end
 
     properties (Access = private)
@@ -24,15 +26,19 @@ classdef LkaVisionRecorder < matlab.System
     methods (Access = protected)
         function setupImpl(obj)
             obj.Writer = [];
-            if isempty(obj.FileName)
+            file = obj.FileName;
+            if isempty(file) && isfield(obj.Vision, 'Bench')
+                file = obj.Vision.Bench.VideoFile;
+            end
+            if isempty(file)
                 return
             end
-            folder = fileparts(obj.FileName);
+            folder = fileparts(file);
             if ~isempty(folder) && ~isfolder(folder)
                 mkdir(folder);
             end
             obj.Cam = lka_camera_model(obj.Vision.Camera, obj.Vision.Bev);
-            obj.Writer = VideoWriter(obj.FileName, 'MPEG-4');
+            obj.Writer = VideoWriter(file, 'MPEG-4');
             obj.Writer.FrameRate = round(1 / obj.Ts);
             open(obj.Writer);
         end

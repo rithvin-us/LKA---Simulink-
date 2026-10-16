@@ -54,3 +54,5 @@ models/perception/+lka_onnx_*/
 data/vision_datasets/
 results/**/*.mp4
 tests/fixtures/*.bin
+# Written by Unreal next to the scene on every run
+data/scenes/LKA/sim3dSemanticTypes.xml

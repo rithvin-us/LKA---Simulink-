@@ -89,10 +89,12 @@ function V = lka_vision_params(profile)
 
     % ---------------------------------------------------------- Unreal test bench
     V.Bench.ScenePath    = '';                % set by lka_build_params (data/scenes/LKA/LKA.usd)
-    V.Bench.FrameMap     = 3;                 % aBaja2026 InitFcn: X = x, Y = -y, yaw = -psi
+    V.Bench.FrameMap     = 2;                 % identity (ISO 8855 world), calibrate_vision_bench 2026-10-16
     V.Bench.MountZOffset = 0;                 % camera height correction [m] (calibrate_vision_bench)
     V.Bench.PitchSign    = 1;                 % sign of the Simulation 3D Camera pitch mount
-    V.Bench.LaneLabelId  = 0;                 % semantic id of lane markings (calibrate_vision_bench)
+    V.Bench.LaneLabelId  = 6;                 % semantic id of lane markings (sim3dSemanticTypes.xml
+                                              % RoadLine/Marking); the RoadRunner USD export of the
+                                              % LKA track carries no semantic classes (ids 2, 57 only)
     V.Bench.VideoFile    = '';
     V.Bench.DatasetDir   = '';
     V.Bench.Decimation   = 5;                 % dataset: keep every Nth frame
