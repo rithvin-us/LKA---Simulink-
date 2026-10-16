@@ -18,7 +18,7 @@ function out = run_lka_on_video(videoFile, options)
 %   Camera     camera struct (fields as LKA.Vision.Camera), or 'auto' to estimate the pitch
 %              from the lane lines (unknown mount)
 %   HFovDeg    horizontal field of view used to build the intrinsics with Camera='auto'
-%              (default 60, the simulator camera; ZED 2i HD720 ~ 87; phone main camera ~ 70)
+%              (default 70, a phone main camera; simulator camera 60; ZED 2i HD720 ~ 87)
 %   LaneWidth  known lane width [m] -> the camera height is solved from it (Camera='auto').
 %              Default NaN: CameraHeight is trusted and the lane width is measured. One of
 %              the two must be known: a single camera cannot tell a narrow lane seen from
@@ -42,7 +42,7 @@ function out = run_lka_on_video(videoFile, options)
         videoFile (1,:) char
         options.Detector char = ''
         options.Camera = []
-        options.HFovDeg (1,1) double = 60
+        options.HFovDeg (1,1) double = 70
         options.LaneWidth (1,1) double = NaN
         options.CameraHeight (1,1) double = 1.2
         options.MaxRange (1,1) double = 20
@@ -257,7 +257,7 @@ function out = run_lka_on_video(videoFile, options)
     plotPath(T, cam.XNear, source, fullfile(options.OutDir, 'lka_video_path.png'));
 
     % ---------------- pass 2: annotated video
-    kCmd = back(rep.CurvatureCmd);
+    kCmd = 1 ./ T.TurnRadius_m;              % arc drawn = the HUD turning radius (after rate limit)
     if options.Video
         vw = VideoWriter(fullfile(options.OutDir, 'lka_video_annotated.mp4'), 'MPEG-4');
         vw.FrameRate = round(1 / median(dt));

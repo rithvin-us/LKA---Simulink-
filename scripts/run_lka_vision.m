@@ -14,6 +14,11 @@ function results = run_lka_vision(options)
 %   RawVideo   - also write the unannotated camera video <scenario>_<detector>_raw.mp4 (default false)
 %   OutDir     - default results/vision
 %   Rebuild    - rebuild LKA_Vision_TestBench first (default false)
+%   Monitor    - publish live telemetry for the dashboard (default true)
+% Unreal and the lane network share the GPU (6 GB on an RTX 4050 laptop): with little free
+% GPU memory Unreal stops at start-up with "3D Simulation engine was terminated by the
+% user (error code: 4)". The run warns below 2.5 GB free; reset(gpuDevice) (after
+% clearing old detectors) frees what MATLAB holds.
 % Output: struct array (res, kpi); CSV lka_vision_kpis.csv and figures in OutDir.
 
     arguments
@@ -25,6 +30,7 @@ function results = run_lka_vision(options)
         options.RawVideo (1,1) logical = false
         options.OutDir char = ''
         options.Rebuild (1,1) logical = false
+        options.Monitor (1,1) logical = true
     end
     root = fileparts(fileparts(mfilename('fullpath')));
     if isempty(options.OutDir)
@@ -52,7 +58,15 @@ function results = run_lka_vision(options)
             LKA = LKA0;
             LKA.ControllerSelect = options.Controller;
             LKA.Vision.Detector = options.Detectors{d};
+            LKA.Vision.Monitor = options.Monitor;
             tag = sprintf('%s_%s', sc.Name, LKA.Vision.Detector);
+            if canUseGPU()
+                g = gpuDevice;
+                if g.AvailableMemory < 2.5e9
+                    warning('lka:vision:lowGpuMemory', ['Only %.1f GB GPU memory free: Unreal may fail ' ...
+                        'to start. Clear old detectors and run reset(gpuDevice).'], g.AvailableMemory / 1e9);
+                end
+            end
             LKA.Vision.Bench.VideoFile = '';
             if options.Video
                 LKA.Vision.Bench.VideoFile = fullfile(options.OutDir, [tag '.mp4']);

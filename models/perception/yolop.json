@@ -3,12 +3,13 @@
   "name": "YOLOP lane-line head (hustvl/YOLOP End-to-end.pth, lane-only export from ADAS_2026)",
   "onnx": "yolop_ll_384x640.onnx",
   "input_size": [384, 640],
-  "channel_order": "BGR",
+  "channel_order": "RGB",
   "scale": 255,
   "mean": [0.485, 0.456, 0.406],
   "std": [0.229, 0.224, 0.225],
   "resize": "letterbox",
   "pad_value": 114,
   "output": "softmax",
-  "lane_channel": 2
+  "lane_channel": 2,
+  "max_range_m": 15
 }

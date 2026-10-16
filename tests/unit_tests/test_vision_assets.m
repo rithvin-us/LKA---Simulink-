@@ -29,6 +29,9 @@ function testDetectorSidecarsParse(testCase)
     end
     yolop = jsondecode(fileread(fullfile(d, 'yolop.json')));
     testCase.verifyEqual(yolop.type, 'seg');
+    % YOLOP was trained on RGB (AutoDriveDataset converts BGR->RGB); its demo.py and the
+    % ADAS_2026 port feed BGR, which hid most lane lines (Unreal render: 4 % -> 31 % left).
+    testCase.verifyEqual(yolop.channel_order, 'RGB');
     cnn = jsondecode(fileread(fullfile(d, 'cnn.json')));
     testCase.verifyEqual(cnn.type, 'ufld_v2');
 end
