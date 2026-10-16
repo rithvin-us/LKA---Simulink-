@@ -11,10 +11,12 @@ function [b, ok] = lka_fit_boundary(pts, F)
 %
 % Adaptive range (F.AdaptiveRange, lka_set_track_profile 'tight'; off by default): one
 % cubic cannot follow two or three bends of a snake lane, so an S over 15 m comes out
-% nearly straight. While the 90th percentile of |residual| exceeds F.MaxResidual [m],
-% the far end of the fitted range is cut back 1 m at a time (not below F.MinRange [m]
-% of span). The near part, which the controller steers on, is then fitted faithfully,
-% and ViewRange reports where the fit ends.
+% nearly straight. The line centre is taken every 0.5 m (probability-weighted mean of
+% the points, so the painted width and pixel noise average out); while the 90th
+% percentile of its distance to the fit exceeds F.MaxResidual [m], the far end of the
+% fitted range is cut back 1 m at a time (not below F.MinRange [m] of span). The near
+% part, which the controller steers on, is then fitted faithfully, and ViewRange
+% reports where the fit ends.
 %
 % Output b uses the LaneBoundaryBus fields and order:
 %   y(x) = LateralOffset + tan(HeadingAngle)*x + Curvature*x^2/2 + CurvatureDerivative*x^3/6
@@ -36,7 +38,7 @@ function [b, ok] = lka_fit_boundary(pts, F)
 
     if isfield(F, 'AdaptiveRange') && F.AdaptiveRange
         xEnd = max(x);
-        while upperResidual(r) > F.MaxResidual && xEnd - min(x) > F.MinRange
+        while upperResidual(x, r, w0) > F.MaxResidual && xEnd - min(x) > F.MinRange
             xEnd = max(min(x) + F.MinRange, xEnd - 1);
             keep = x <= xEnd;
             if nnz(keep) < F.MinPoints
@@ -82,8 +84,10 @@ function [cs, r] = robustFit(x, y, w0, deg, F)
     end
 end
 
-function v = upperResidual(r)
-% 90th percentile of |r| (no Statistics Toolbox needed).
-    a = sort(abs(r));
+function v = upperResidual(x, r, w)
+% 90th percentile over 0.5 m bins of |weighted mean residual| (no Statistics Toolbox).
+    [~, ~, bin] = unique(floor(x / 0.5));
+    m = accumarray(bin, w .* r) ./ max(accumarray(bin, w), eps);
+    a = sort(abs(m));
     v = a(max(1, ceil(0.9 * numel(a))));
 end

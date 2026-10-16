@@ -11,11 +11,11 @@ function LKA = lka_set_track_profile(LKA, profile, options)
 %
 % 'tight' is for a painted test lane with bends down to MinRadius (the college track:
 % about 2 m wide, S-bends of R 3-8 m). With the official values such a lane comes out
-% almost straight, for four reasons that add up (docs/lka_controller.md section 9.1):
+% almost straight, for five reasons that add up (docs/lka_controller.md section 9.1):
 %   1. Fit degree from the span (linear < 8 m <= quadratic < 15 m <= cubic): one
 %      polynomial over 4-20 m averages two or three bends to nearly zero curvature.
 %      -> quadratic from 3 m, cubic from 6 m, and the fitted range is cut back until
-%         the fit follows the paint (Fit.AdaptiveRange, Fit.MaxResidual).
+%         the fit follows the line centre within 4 cm (Fit.AdaptiveRange, Fit.MaxResidual).
 %   2. The search predicts the next window with a straight line, loses a tight bend and
 %      stops, so only the straight start of the bend is fitted.
 %      -> parabola prediction (Search.PredictQuadratic), widening after a miss.
@@ -56,7 +56,7 @@ function LKA = lka_set_track_profile(LKA, profile, options)
     V.Fit.QuadSpan = 3;
     V.Fit.CubicSpan = 6;
     V.Fit.AdaptiveRange = true;
-    V.Fit.MaxResidual = 0.06;
+    V.Fit.MaxResidual = 0.04;
     V.Fit.MinRange = 5;
     V.Fit.FullStrengthSpan = 6;                    % a 6 m fit of a tight bend is a full measurement
     V.Search.PredictQuadratic = true;

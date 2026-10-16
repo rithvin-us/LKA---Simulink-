@@ -81,7 +81,7 @@ function V = lka_vision_params(profile)
     V.Fit.ProbFull         = 0.7;             % mean probability that gives full strength
     V.Fit.AdaptiveRange    = false;           % cut the fitted range back until the polynomial
                                               % follows the line (tight tracks, lka_fit_boundary)
-    V.Fit.MaxResidual      = 0.06;            % 90th percentile |residual| allowed then [m]
+    V.Fit.MaxResidual      = 0.04;            % 90th percentile line-centre distance allowed then [m]
     V.Fit.MinRange         = 5;               % shortest fitted span then [m]
 
     % ---------------------------------------------------------- frame-to-frame logic

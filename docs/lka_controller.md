@@ -582,7 +582,7 @@ tool uses the tight profile by default (`TrackProfile='official'` for a video of
 | Setting | Official (default) | Tight |
 |---|---|---|
 | Fit degree | parabola ≥ 8 m, cubic ≥ 15 m | parabola ≥ 3 m, cubic ≥ 6 m |
-| Fitted range | whole search | cut back 1 m at a time until 90 % of the paint is within 6 cm (`Fit.AdaptiveRange`, at least 5 m) |
+| Fitted range | whole search | cut back 1 m at a time until the line centre (every 0.5 m) is within 4 cm of the fit for 90 % of the range (`Fit.AdaptiveRange`, `Fit.MaxResidual`, at least 5 m); paint width and noise average out |
 | Search prediction | straight line | parabola (`Search.PredictQuadratic`), window +0.15 m per missed slice |
 | Curvature gates | 0.1 1/m | 1 / (0.8 · MinRadius) = 0.42 1/m |
 | Camera chain checks | at the rear axle | at the first visible row (`Track.CheckAtNear`), heading ≤ 50° |
@@ -593,13 +593,13 @@ the painted line traced without a curve model; the MATLAB run with the team CNN 
 
 | Clip | Fit vs paint, 90th percentile, 3 / 5 m past the first visible row | Lane-centre curvature, 90th percentile | Both lines accepted by the controller |
 |---|---|---|---|
-| 12.23.27 | 0.17 / 0.42 m → **0.05 / 0.15 m** | 0.038 → **0.154** 1/m | 69 % → **96 %** |
-| 12.23.27 (1) | 0.06 / 0.07 m → **0.03 / 0.03 m** | 0.020 → **0.094** 1/m | 89 % → **95 %** |
-| 12.23.28 | 0.17 / 0.22 m → **0.04 / 0.05 m** | 0.035 → **0.167** 1/m | 47 % → **81 %** |
+| 12.23.27 | 0.17 / 0.42 m → **0.05 / 0.15 m** | 0.038 → **0.147** 1/m | 69 % → **94 %** |
+| 12.23.27 (1) | 0.06 / 0.07 m → **0.03 / 0.02 m** | 0.020 → **0.092** 1/m | 89 % → **94 %** |
+| 12.23.28 | 0.17 / 0.22 m → **0.03 / 0.05 m** | 0.035 → **0.150** 1/m | 47 % → **81 %** |
 
 The tight fits stop where one cubic can no longer follow the paint (`ViewRange`), so the preview is
-shorter: on clip 12.23.27 the fit reaches 7 m past the first visible row in about half of the frames
-(the other clips: 81–96 %). The annotated video now draws each line only up to its `ViewRange`.
+shorter: on clip 12.23.27 the fit reaches 7 m past the first visible row in about 40 % of the frames
+(the other clips: 69–96 %). The annotated video now draws each line only up to its `ViewRange`.
 
 **So it cannot come back unnoticed.**
 - `tests/unit_tests/test_vision_tight_track.m`: synthetic snake lanes (no camera toolbox); fails if a
