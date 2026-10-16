@@ -100,6 +100,62 @@ function testBusFieldOrder(testCase)
     testCase.verifyClass(sensor.Left.LateralOffset, 'double');
 end
 
+function testNarrowLaneWidthAccepted(testCase)
+    % A 3.0 m lane (outside WidthInit +- WidthTol) must not lock out one side forever.
+    V = testCase.TestData.V; cam = testCase.TestData.cam;
+    state = lka_vision_state_init(V);
+    s = lka_default_scene(); s.Width = 3.0;
+    [~, prob, gt] = lka_render_lane_scene(cam, s);
+    bev = double(transformImage(cam.Bev, prob));
+    for k = 1:15
+        [sensor, state] = lka_vision_lane_step(bev, cam, V, state, 0.05);
+    end
+    testCase.verifyGreaterThan(sensor.Left.Strength, 0);
+    testCase.verifyGreaterThan(sensor.Right.Strength, 0);
+    testCase.verifyEqual(sensor.Right.LateralOffset, gt.Right.LateralOffset, 'AbsTol', 0.05);
+    testCase.verifyEqual(state.Width, 3.0, 'AbsTol', 0.05);
+end
+
+function testColdStartFarOffCentre(testCase)
+    s = lka_default_scene(); s.Offset = 1.2;             % left line only 0.55 m from the axis
+    checkScene(testCase, s);
+end
+
+function testWarmPriorExpiresQuickly(testCase)
+    % Without ego-motion compensation the previous fit is only a prior for PriorMaxAge.
+    V = testCase.TestData.V; cam = testCase.TestData.cam;
+    [~, prob] = lka_render_lane_scene(cam, lka_default_scene());
+    [~, state] = lka_vision_lane_step(double(transformImage(cam.Bev, prob)), cam, V, lka_vision_state_init(V), 0.05);
+    empty = zeros(numel(cam.RowX), numel(cam.ColY));
+    n = ceil(V.Track.HoldTime / 0.05) + 1;
+    for k = 1:n
+        [~, state] = lka_vision_lane_step(empty, cam, V, state, 0.05);
+    end
+    testCase.verifyFalse(state.Left.Valid);
+    testCase.verifyLessThanOrEqual(V.Track.HoldTime, 0.3);
+end
+
+function testWidthChangeReseeds(testCase)
+    % 3.5 m lane, then 2.8 m (outside WidthTol of the estimate): after WidthReseedFrames
+    % rejected frames the estimate is re-seeded and both sides are reported again.
+    V = testCase.TestData.V; cam = testCase.TestData.cam;
+    state = lka_vision_state_init(V);
+    [~, p35] = lka_render_lane_scene(cam, lka_default_scene());
+    s = lka_default_scene(); s.Width = 2.8;
+    [~, p28, gt] = lka_render_lane_scene(cam, s);
+    b35 = double(transformImage(cam.Bev, p35)); b28 = double(transformImage(cam.Bev, p28));
+    for k = 1:5
+        [~, state] = lka_vision_lane_step(b35, cam, V, state, 0.05);
+    end
+    for k = 1:V.Track.WidthReseedFrames + 3
+        [sensor, state] = lka_vision_lane_step(b28, cam, V, state, 0.05);
+    end
+    testCase.verifyGreaterThan(sensor.Left.Strength, 0);
+    testCase.verifyGreaterThan(sensor.Right.Strength, 0);
+    testCase.verifyEqual(sensor.Left.LateralOffset, gt.Left.LateralOffset, 'AbsTol', 0.05);
+    testCase.verifyEqual(state.Width, 2.8, 'AbsTol', 0.05);
+end
+
 % ------------------------------------------------------------------ helpers
 function [sensor, gt] = runFrame(testCase, scene)
     V = testCase.TestData.V; cam = testCase.TestData.cam;

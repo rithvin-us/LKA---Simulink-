@@ -87,6 +87,14 @@ function testCurveFollowed(testCase)
     testCase.verifyGreaterThan(farX, 15);
 end
 
+function testWindowOutsideBevDoesNotThrow(testCase)
+    [bev, cam, S] = bevOf(testCase, lka_default_scene());
+    prior = struct('Fun', @(x) 20 + 0 * x, 'HalfWidth', 0.45, 'Side', 1, 'Cold', false);
+    [pts, nHit] = lka_search_boundary(bev, cam, prior, S);
+    testCase.verifyEmpty(pts);
+    testCase.verifyEqual(nHit, 0);
+end
+
 % ------------------------------------------------------------------ helpers
 function [bev, cam, S] = bevOf(testCase, scene)
     cam = testCase.TestData.cam;

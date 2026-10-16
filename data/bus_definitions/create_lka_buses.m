@@ -95,7 +95,7 @@ function create_lka_buses()
         'Curvature',           'double', '1/m',    'Boundary curvature (+ turning left)'
         'CurvatureDerivative', 'double', '1/m^2',  'Curvature rate along the boundary'
         'Strength',            'double', '',       'Detection strength 0..1 (0 = not detected)'
-        'ViewRange',           'double', 'm',      'Longitudinal length of the detected boundary'});
+        'ViewRange',           'double', 'm',      'Look-ahead distance up to which the boundary is detected'});
     assignin('base', 'LaneBoundaryBus', LaneBoundaryBus);
 
     % 5. Lane Sensor Bus (detector output)

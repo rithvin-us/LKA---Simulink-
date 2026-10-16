@@ -8,7 +8,9 @@ function [sensor, state, info] = lka_vision_lane_step(bevProb, cam, V, state, dt
 % at most Track.HoldTime old) or around the nominal lane +-width/2 (cold), robust fit,
 % plausibility (heading, curvature, side of the vehicle). With both sides found, the
 % pair width at the first BEV row must match the width estimate (the weaker side is
-% dropped otherwise) and updates it. Only direct fits become the next prior, which
+% dropped otherwise) and updates it. The estimate is seeded from the first plausible
+% pair and re-seeded after Track.WidthReseedFrames consecutive rejections, so a road
+% whose width differs from WidthInit cannot lock out one side. Only direct fits become the next prior, which
 % fixes ADAS_2026 finding M1 (a reconstructed side could lock out the real line).
 % One-line operation, coasting and take-over stay in LKA_Controller (lane tracker,
 % supervisor), so a missing side is reported with Strength 0.
@@ -53,11 +55,18 @@ function [sensor, state, info] = lka_vision_lane_step(bevProb, cam, V, state, dt
 
     if all(found)
         wPair = yAt(bnd{1}, cam.XNear) - yAt(bnd{2}, cam.XNear);
-        if wPair < V.Track.WidthMin || wPair > V.Track.WidthMax || abs(wPair - W) > V.Track.WidthTol
+        plausible = wPair >= V.Track.WidthMin && wPair <= V.Track.WidthMax;
+        if plausible && (~state.WidthSeeded || state.WidthRejects >= V.Track.WidthReseedFrames)
+            state.Width = wPair;                      % first pair, or the road width changed
+            state.WidthSeeded = true;
+            state.WidthRejects = 0;
+        elseif plausible && abs(wPair - W) <= V.Track.WidthTol
+            state.Width = W + min(1, dt / V.Track.WidthTau) * (wPair - W);
+            state.WidthRejects = 0;
+        else
+            state.WidthRejects = state.WidthRejects + plausible;
             [~, weak] = min([bnd{1}.Strength, bnd{2}.Strength]);
             found(weak) = false;
-        else
-            state.Width = W + min(1, dt / V.Track.WidthTau) * (wPair - W);
         end
     end
 

@@ -48,7 +48,8 @@ function V = lka_vision_params(profile)
     % ---------------------------------------------------------- sliding-window search
     V.Search.ProbThreshold = 0.5;
     V.Search.SliceLength   = 1.0;    % [m]
-    V.Search.ColdHalfWidth = 0.9;    % window half-width around the nominal lane [m]
+    V.Search.ColdHalfWidth = 1.3;    % window half-width around the nominal lane [m]: acquires
+                                     % the lane up to 1.3 m off centre, adjacent lines stay out
     V.Search.WarmHalfWidth = 0.45;   % around the previous boundary (lateral jump gate) [m]
     V.Search.MinSliceMass  = 4;      % summed probability needed in a slice window [px]
     V.Search.MaxGap        = 8;      % stop after this length without a hit [m]
@@ -69,8 +70,12 @@ function V = lka_vision_params(profile)
     V.Fit.ProbFull         = 0.7;             % mean probability that gives full strength
 
     % ---------------------------------------------------------- frame-to-frame logic
-    V.Track.HoldTime     = 1.0;               % previous direct fit is a prior this long [s]
+    V.Track.HoldTime     = 0.3;               % previous direct fit is a prior this long [s]
+                                              % (no ego-motion compensation: on R127 at
+                                              % 30 km/h the prior drifts ~0.1 m per 0.3 s at 20 m)
     V.Track.WidthInit    = 3.5;               % [m]
+    V.Track.WidthReseedFrames = 10;           % consecutive plausible pairs rejected by the
+                                              % width check before the estimate is re-seeded
     V.Track.WidthTau     = 2.0;               % [s]
     V.Track.WidthTol     = 0.6;               % pair width vs estimate [m]
     V.Track.WidthMin     = 2.5;               % [m]
