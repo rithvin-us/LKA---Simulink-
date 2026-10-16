@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "lka-dashboard",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["tools/lka_dashboard.py", "--port", "8050"],
+      "port": 8050
+    }
+  ]
+}

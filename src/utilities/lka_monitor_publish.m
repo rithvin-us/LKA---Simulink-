@@ -15,15 +15,15 @@ function lka_monitor_publish(action, data, frame)
 % every field) and results/monitor/live.jpg. Files are written to a temporary name and
 % renamed, so the dashboard never reads half a file. JSON at most every 0.2 s, the frame
 % at most every 0.4 s (start / phase / done are always written), so publishing costs the
-% LKA loop well under 1 ms per frame on average. Errors are swallowed: monitoring must
-% never stop a run.
-    persistent run series latest lastJson lastFrame phase
+% LKA loop well under 1 ms per frame on average. Errors never stop a run: the first one
+% is reported as a warning (lka:monitor:failed), later ones are ignored.
+    persistent run series latest lastJson lastFrame phase warned
     try
         dirOut = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'results', 'monitor');
         if ~isfolder(dirOut)
             mkdir(dirOut);
         end
-        now_ = posixtime(datetime('now'));
+        now_ = posixtime(datetime('now', 'TimeZone', 'UTC'));   % epoch seconds, as Python time.time()
         force = false;
         switch lower(action)
             case 'start'
@@ -75,8 +75,11 @@ function lka_monitor_publish(action, data, frame)
             writeAtomic(fullfile(dirOut, 'live.json'), @(p) writeText(p, txt));
             lastJson = now_;
         end
-    catch
-        % monitoring is best effort
+    catch err
+        if isempty(warned)
+            warned = true;
+            warning('lka:monitor:failed', 'Live dashboard telemetry disabled: %s', err.message);
+        end
     end
 end
 
