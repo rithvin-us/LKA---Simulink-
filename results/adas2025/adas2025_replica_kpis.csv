@@ -1,0 +1,5 @@
+Variant,Description,MaxLatOffset_m,InLaneRatio,FirstLineTouch_s,AllWheelsOut,MaxSteer_deg
+as_coded,"As coded: heading sign bug, 1 s mean, 3.0 m lane, 5 m/s",5.12178691561853,0.615971814445097,5.5399999999999,1,21.8080395642923
+as_coded_no_mean,"As coded without the 1 s mean",5.08252937733081,0.648706896551724,4.80999999999992,1,23.9997481913667
+sign_fixed_mean,"Heading sign fixed, 1 s mean kept",5.03285590667363,0.881884538818845,6.27999999999989,1,4.98068887575754
+fixed,"Sign fixed, per-frame command, 3.5 m lane, measured speed",0.252593960055862,1,NaN,0,2.89791156986988
