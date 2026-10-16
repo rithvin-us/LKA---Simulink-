@@ -209,6 +209,7 @@ function LKA = lka_build_params(profile, vehicle, sensor)
     % ---------------------------------------- Co-simulation adapter (skeleton only)
     Cosim.PoseToRearAxle = -Veh.b;       % Longitudinal offset from skeleton CurrPose point to rear axle [m]
     Cosim.YawOffsetDeg   = 0;            % Added to skeleton CurrPose yaw before use [deg]
+    Cosim.YawRateSign    = -1;           % CurrYawRate [deg/s] -> + CCW (CurrPose yaw = -90 - psi3D); checked in Phase 5
     Cosim.LkaModes       = [1 2];        % Skeleton Mode values in which the LKA steers (LKA, Endurance)
     LKA.Cosim = Cosim;
 

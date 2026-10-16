@@ -21,6 +21,12 @@ if ~exist('lkaProfile', 'var')
 end
 LKA = lka_build_params(lkaProfile, vehicle, sensor);
 
+% Lane source of the competition model (variant control of "Lane Source" in aBaja2026.slx):
+%   1 = camera lane detector (submission, rule I.2.3)   2 = emulated sensor (development only)
+if ~exist('LKA_LANE_SOURCE', 'var')
+    LKA_LANE_SOURCE = 1;
+end
+
 controller = struct();
 
 % --- Sample Time ---
