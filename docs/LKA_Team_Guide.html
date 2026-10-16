@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>aBaja LKA Team Guide</title>
+<style>
+:root{--bg:#fbfbf9;--fg:#1d2329;--muted:#5b6670;--card:#ffffff;--line:#d9dee3;--acc:#1f6feb;--ok:#1a7f37;--bad:#cf222e;--code:#f2f4f6}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111418;--fg:#e6e9ec;--muted:#9aa5b0;--card:#181c21;--line:#2c333b;--acc:#58a6ff;--ok:#3fb950;--bad:#f85149;--code:#20262d}}
+:root[data-theme="dark"]{--bg:#111418;--fg:#e6e9ec;--muted:#9aa5b0;--card:#181c21;--line:#2c333b;--acc:#58a6ff;--ok:#3fb950;--bad:#f85149;--code:#20262d}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:960px;margin:0 auto;padding:24px 16px 64px}h1{font-size:1.9rem;margin:.2em 0}h2{margin-top:2.2em;border-bottom:1px solid var(--line);padding-bottom:.3em}
+p.lead{color:var(--muted);font-size:1.1rem}code,pre{background:var(--code);border-radius:6px;font-family:ui-monospace,Consolas,monospace;font-size:.92em}code{padding:.1em .35em}
+pre{padding:12px 14px;overflow-x:auto}table{border-collapse:collapse;width:100%;margin:12px 0;font-size:.95rem;display:block;overflow-x:auto}th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}th{background:var(--card)}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0}.box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;flex:1 1 150px;min-width:140px}.box b{display:block}.box small{color:var(--muted)}.arrow{color:var(--muted);font-size:1.4rem}
+.note{border-left:4px solid var(--acc);background:var(--card);padding:10px 14px;border-radius:6px;margin:14px 0}.ok{color:var(--ok);font-weight:600}.bad{color:var(--bad);font-weight:600}
+nav{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 16px}nav a{color:var(--acc);text-decoration:none;margin-right:14px;display:inline-block}
+</style>
+</head>
+<body><main>
+<h1>aBaja 2026 Lane Keeping Assist: team guide</h1>
+<p class="lead">What the LKA does, how fast it runs, and how to run it in MATLAB/Simulink, written for team members new to MATLAB.</p>
+<nav><a href="#what">What it does</a><a href="#rate">Frame rate</a><a href="#run">How to run</a><a href="#detectors">Detectors</a><a href="#results">Results</a><a href="#files">Folders</a><a href="#words">Glossary</a><a href="#help">Problems</a></nav>
+
+<h2 id="what">1. What the system does</h2>
+<p>The camera looks at the road. The software finds the two lane lines and decides how much to turn the front wheels so the car stays in the middle of the lane. It outputs a <b>steering angle</b> and the <b>turning radius</b> (R = 1/curvature; + means a left turn). It only steers. In the competition the safety driver controls speed (rulebook K.2.1).</p>
+<div class="flow">
+<div class="box"><b>1 Camera</b><small>1280×720, 20 frames per second</small></div><span class="arrow">→</span>
+<div class="box"><b>2 Lane detector</b><small>classic, team CNN (UFLDv2) or YOLOP; outputs a "lane-line probability" image</small></div><span class="arrow">→</span>
+<div class="box"><b>3 Bird's-eye view</b><small>image turned into a top view in metres</small></div><span class="arrow">→</span>
+<div class="box"><b>4 Line fit</b><small>left and right line as curves (offset, heading, curvature)</small></div><span class="arrow">→</span>
+<div class="box"><b>5 LKA controller</b><small>Kalman filter, safety state machine, pure pursuit / MPC</small></div><span class="arrow">→</span>
+<div class="box"><b>6 Steering</b><small>wheel angle (±32°, 60°/s), turning radius</small></div>
+</div>
+<div class="note"><b>Rule I.2.3:</b> the final algorithm may only use realistic sensors, so no "ground truth" from the simulator. Our competition model therefore uses the camera (<code>LKA_LANE_SOURCE = 1</code>). Ground truth is used only to <i>score</i> runs.</div>
+
+<h2 id="rate">2. Frame rate and timing</h2>
+<p>The whole control loop runs at a <b>fixed 20 Hz</b> (one step every 50 ms): camera frame, then detector, then controller, then steering command. The vehicle physics in the test bench is calculated at 200 Hz (every 5 ms). One frame (50 ms) of processing delay is built in on purpose, and the Kalman filter compensates for it.</p>
+<table><tr><th>Stage (measured on the RTX 4050 laptop)</th><th>Time per frame</th><th>Max rate</th></tr>
+<tr><td>Classic detector (MATLAB, CPU)</td><td>17 ms</td><td>58 Hz</td></tr>
+<tr><td>Team CNN UFLDv2 (onnxruntime, CPU)</td><td>58 ms</td><td>17 Hz</td></tr>
+<tr><td>YOLOP (onnxruntime, CPU)</td><td>58 ms</td><td>17 Hz</td></tr>
+<tr><td>Bird's-eye warp</td><td>3 ms</td><td>310 Hz</td></tr>
+<tr><td>Line search and fit</td><td>8 ms</td><td>120 Hz</td></tr>
+<tr><td>LKA controller (MIL bench, whole 60 s run incl. vehicle physics)</td><td>41 s for 60 s</td><td>1.4× faster than real time</td></tr>
+</table>
+<ul>
+<li><b>Classic detector total</b> ≈ 28 ms per frame, so it easily keeps up with 20 Hz in real time.</li>
+<li><b>CNN on CPU</b> ≈ 68 ms per frame. That is slower than real time, but the <i>simulation</i> stays correct: simulation time is not wall-clock time, so the run just takes longer. For real-time CNN, run it on the GPU: install the MATLAB add-on "Deep Learning Toolbox Converter for ONNX Model Format" (then <code>LKA.Vision.OnnxBackend = 'matlab'</code>), or use TensorRT on the Jetson later.</li>
+<li><b>Camera-in-the-loop runs</b> with Unreal take about 90–140 s of wall time for a 60 s scenario.</li>
+</ul>
+
+<h2 id="run">3. How to run it (step by step)</h2>
+<ol>
+<li>Open <b>MATLAB R2026a</b>. In the Current Folder panel go to <code>LKA - Matlab</code> (the repository root).</li>
+<li>In the Command Window type the line below and press Enter. It sets up the folders, the parameters and the "bus" data types.
+<pre>run('config/startup.m')</pre></li>
+<li><b>Controller test without a camera</b> (fast; figures go to <code>results/mil/</code>):
+<pre>run_lka_mil(Scenarios={'S1_Nominal'}, Controllers=1)</pre></li>
+<li><b>Camera test on the official track</b>. An Unreal window opens; the video goes to <code>results/vision/</code>.
+<pre>run_lka_vision(Detectors={'cnn'})          % team CNN
+run_lka_vision(Detectors={'classic'})      % simple detector</pre></li>
+<li><b>Compare the detectors</b> (table in <code>results/benchmark/</code>):
+<pre>run_detector_benchmark()</pre></li>
+<li><b>Run all tests:</b> <code>runtests('tests')</code>. Unreal tests only run after <code>setenv('LKA_RUN_UNREAL_TESTS','1')</code>.</li>
+<li><b>Competition model:</b> <code>integrate_lka_into_skeleton()</code> wires the LKA into <code>aBaja2026.slx</code>. It needs RoadRunner to simulate.</li>
+</ol>
+<div class="note">The team CNN file <code>models/perception/team_cnn.onnx</code> (385 MB) is too big for GitHub. Create it once with
+<pre>python tools/export_ufld_onnx.py &lt;model_best.pth&gt; models/perception/team_cnn.onnx</pre>
+or copy it from the team Drive.</div>
+
+<h2 id="detectors">4. The three lane detectors</h2>
+<table><tr><th>Name</th><th>What it is</th><th>Status in simulation</th></tr>
+<tr><td><code>classic</code></td><td>Finds bright white/yellow thin lines. No AI.</td><td class="ok">Works: 0.079 m max offset</td></tr>
+<tr><td><code>cnn</code></td><td>Team UFLDv2 (ResNet-18, trained on TuSimple, "96 %" = TuSimple point accuracy). Fit limited to 18 m ahead because its far points bend the wrong way on tight curves.</td><td class="ok">Best: 0.039 m max offset, 100 % in lane</td></tr>
+<tr><td><code>yolop</code></td><td>2025 ADAS_2026 model (trained on real dashcam video)</td><td class="bad">Does not see the rendered lines (sim vs real gap)</td></tr>
+</table>
+<p>Switch with <code>LKA.Vision.Detector = 'cnn'</code> (or pass <code>Detectors=</code> to the run scripts). How to plug in a new model: <code>models/perception/README.md</code>.</p>
+
+<h2 id="results">5. Results (official LKA track, 0 → 30 km/h, pure pursuit)</h2>
+<table><tr><th>Lane input</th><th>Max offset from centre</th><th>Closest tyre to line</th><th>Time in lane</th></tr>
+<tr><td>Camera, team CNN</td><td>0.039 m</td><td>0.89 m</td><td>100 %</td></tr>
+<tr><td>Camera, classic</td><td>0.079 m</td><td>0.85 m</td><td>100 %</td></tr>
+<tr><td>Simulated sensor (development only)</td><td>0.098 m</td><td>0.84 m</td><td>100 %</td></tr>
+<tr><td>2025 Python steering law as written</td><td>left the road after 5.5 s</td><td>-</td><td>62 %</td></tr>
+</table>
+<p>The 2025 code had a wrong sign in its heading term and a 1-second averaging delay. Details and the fix list for the Jetson phase: <code>docs/adas2026_audit.md</code>. Score used by the rulebook: S = T<sub>in lane</sub> / T<sub>total</sub>², reported as <code>RulebookScore</code>.</p>
+
+<h2 id="files">6. Where things are</h2>
+<table><tr><th>Folder</th><th>Contains</th></tr>
+<tr><td><code>config/</code></td><td><code>startup.m</code>: run this first</td></tr>
+<tr><td><code>src/vision/</code></td><td>camera lane detector (detectors, bird's-eye view, line fit)</td></tr>
+<tr><td><code>src/controllers/</code>, <code>src/perception/</code></td><td>pure pursuit, Stanley, MPC, Kalman lane tracker</td></tr>
+<tr><td><code>models/</code></td><td>Simulink models (generated by scripts; do not edit by hand)</td></tr>
+<tr><td><code>models/perception/</code></td><td>AI model files and their settings (<code>.json</code>)</td></tr>
+<tr><td><code>scripts/</code></td><td><code>run_lka_mil</code>, <code>run_lka_vision</code>, <code>run_detector_benchmark</code>, <code>measure_lka_timing</code></td></tr>
+<tr><td><code>results/</code></td><td>figures, videos (not in git), tables</td></tr>
+<tr><td><code>docs/</code></td><td>technical explanation (<code>lka_controller.md</code>), 2025 audit, plans</td></tr>
+</table>
+
+<h2 id="words">7. Glossary</h2>
+<table><tr><th>Word</th><th>Meaning</th></tr>
+<tr><td>Simulink model (.slx)</td><td>A block diagram that runs as a simulation; blocks pass signals along wires.</td></tr>
+<tr><td>Bus</td><td>A bundle of named signals on one wire, for example <code>LaneSensorBus</code> = left line + right line + valid flag.</td></tr>
+<tr><td>MIL</td><td>Model-in-the-loop: controller + simulated car, no camera images.</td></tr>
+<tr><td>Camera-in-the-loop</td><td>Unreal renders camera images from the 3D track; the detector reads them.</td></tr>
+<tr><td>Pure pursuit</td><td>Steers towards a point on the lane centre about 6 m ahead.</td></tr>
+<tr><td>Kalman filter</td><td>Smooths the lane measurement and predicts it through missed frames.</td></tr>
+<tr><td>ONNX</td><td>A standard file format for trained neural networks (from PyTorch etc.).</td></tr>
+<tr><td>ISO 8855</td><td>Axis convention: x forward, y left, positive angle = turning left.</td></tr>
+</table>
+
+<h2 id="help">8. Common problems</h2>
+<table><tr><th>Message / symptom</th><th>Fix</th></tr>
+<tr><td><i>Unrecognized function...</i></td><td>Run <code>run('config/startup.m')</code> first.</td></tr>
+<tr><td><i>Lane model ... team_cnn.onnx not found</i></td><td>Export or copy the CNN file (see section 3).</td></tr>
+<tr><td><i>No ONNX back end</i></td><td><code>pip install onnxruntime</code> for MATLAB's Python, or install the ONNX add-on.</td></tr>
+<tr><td>Unreal error "variation in terrain"</td><td>The car left the road (lane lost). Check the detector.</td></tr>
+<tr><td>Scene not found after moving the folder</td><td>Run <code>build_lka_vision_bench()</code> again.</td></tr>
+</table>
+<p style="color:var(--muted)">Generated 2026-10-16. Repository: github.com/rithvin-us/LKA---Simulink-</p>
+</main></body></html>
