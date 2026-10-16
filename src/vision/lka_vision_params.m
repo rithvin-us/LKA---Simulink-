@@ -60,7 +60,9 @@ function V = lka_vision_params(profile)
     V.Fit.MinSpan          = 4;               % [m]
     V.Fit.QuadSpan         = 8;               % quadratic above this span [m]
     V.Fit.CubicSpan        = 15;              % cubic above this span [m]
-    V.Fit.Ridge            = [0 0 2 20];      % penalty on the scaled [c0 c1 c2 c3]
+    V.Fit.Ridge            = [0 0 1e-3 1e-2]; % penalty on the scaled [c0 c1 c2 c3] (numerical
+                                              % safety only: larger values trade c2/c3 against
+                                              % c0/c1 and bias the extrapolated offset at x = 0)
     V.Fit.HuberDelta       = 0.08;            % [m]
     V.Fit.Iterations       = 3;
     V.Fit.FullStrengthSpan = 12;              % span that gives full strength [m]
