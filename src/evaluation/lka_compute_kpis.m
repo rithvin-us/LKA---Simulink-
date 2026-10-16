@@ -32,7 +32,7 @@ function kpi = lka_compute_kpis(res)
     kpi.TimeInLane_s = sum(gt.inLane(moving)) * dt;
     kpi.InLaneRatio = kpi.TimeInLane_s / kpi.TotalTime_s;
     kpi.AnyWheelOut_s = sum(~gt.inLane(moving)) * dt;
-    kpi.AllWheelsOut = any(all(gt.margins(moving, :) < 0, 2));
+    kpi.AllWheelsOut = any(all(lka_wheels_out(gt.margins(moving, :), res.vehicle.trackWidth), 2));
 
     % -------- speed
     kpi.MaxSpeed_kmh = 3.6 * max(gt.speed);

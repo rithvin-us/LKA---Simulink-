@@ -255,3 +255,21 @@ function est = estimate(y, psi, k)
         'CurvatureDerivative', 0, 'LaneWidth', 3.5, 'Quality', 1, 'CoastTime', 0, ...
         'NumBoundaries', 2, 'MeasValid', true);
 end
+
+% ------------------------------------------------------------------ wheels out (DQ)
+function testWheelsOutWhenCarCrossedFullyOverLine(testCase)
+    % Car 5 m left of the lane centre: every tyre is beyond the left line, although the
+    % right tyres keep a positive margin to their own (right) line.
+    v = testCase.TestData.vehicle;
+    [~, ~, margins] = lka_ground_truth_metrics([0 5 0], [0 0 0], [0 0], 3.5, 0.125, v);
+    testCase.verifyGreaterThan(margins(2), 0);                       % own-side margin misleads
+    testCase.verifyTrue(all(lka_wheels_out(margins, v.trackWidth)));
+end
+
+function testWheelsOutStraddlingAndCentred(testCase)
+    v = testCase.TestData.vehicle;
+    [~, ~, m0] = lka_ground_truth_metrics([0 0 0], [0 0 0], [0 0], 3.5, 0.125, v);
+    testCase.verifyFalse(any(lka_wheels_out(m0, v.trackWidth)));
+    [~, ~, m1] = lka_ground_truth_metrics([0 1.2 0], [0 0 0], [0 0], 3.5, 0.125, v);
+    testCase.verifyEqual(lka_wheels_out(m1, v.trackWidth), [true false true false]);
+end
