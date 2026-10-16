@@ -9,8 +9,8 @@ function [pts, nHit] = lka_search_boundary(bevProb, cam, prior, S)
 % column profile above ProbThreshold is split into runs and the run closest to the
 % window centre is taken (a second line or a road arrow inside the window is ignored).
 % The expected position comes from the prior for the first hit, then from a straight
-% line through the last (up to 6) slice peaks. A cold prior (no previous fit) also keeps
-% the window on its own side of the vehicle (|y| > MinCenterDist).
+% line through the last (up to 6) slice peaks. A cold prior (no previous fit) keeps the
+% window on its own side of the vehicle (|y| > MinCenterDist) until the first hit.
 %
 % Inputs:
 %   bevProb - BEV probability image (double, rows = cam.RowX, columns = cam.ColY)
@@ -34,7 +34,8 @@ function [pts, nHit] = lka_search_boundary(bevProb, cam, prior, S)
         xMid = 0.5 * (edges(k) + edges(k + 1));
         yc = expected(xMid);
         cols = colY >= yc - prior.HalfWidth & colY <= yc + prior.HalfWidth;
-        if prior.Cold
+        if prior.Cold && isempty(px)
+            % first hit only: on a tight curve the line may later cross the vehicle axis
             cols = cols & prior.Side * colY > S.MinCenterDist;
         end
         cIdx = find(cols);
