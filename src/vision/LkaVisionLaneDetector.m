@@ -27,6 +27,7 @@ classdef LkaVisionLaneDetector < matlab.System
         function setupImpl(obj)
             obj.Cam = lka_camera_model(obj.Vision.Camera, obj.Vision.Bev);
             obj.Det = lka_detector_create(obj.Vision);
+            obj.Cam.XFar = min(obj.Cam.XFar, obj.Det.MaxRange);   % search/fit only the trusted range
             obj.State = lka_vision_state_init(obj.Vision);
         end
 

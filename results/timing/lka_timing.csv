@@ -1,0 +1,7 @@
+Stage,Median_ms,MaxRate_Hz
+"detector: classic (white/yellow local contrast)",17.15465,58.293232447179
+"detector: YOLOP lane-line head (hustvl/YOLOP End-to-end.pth, lane-only export from ADAS_2026) [onnxruntime]",57.2966,17.4530425889145
+"detector: Team CNN: UFLDv2 ResNet-18, TuSimple (Colab UFLDv2_Lane_Detection_Colab.ipynb, model_best.pth) [onnxruntime]",56.67325,17.6450088886732
+"bird's-eye warp (transformImage)",3.20985,311.541037743197
+"lane search + robust fit (lka_vision_lane_step)",8.34725,119.799934110036
+"video annotation (recorder only)",6.5837,151.890274465726

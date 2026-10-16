@@ -6,6 +6,8 @@ function det = lka_detector_classic(~)
 % the fallback while the ONNX add-on or the team CNN are unavailable and as the
 % benchmark baseline.
     det.Name = 'classic (white/yellow local contrast)';
+    det.Backend = 'matlab';
+    det.MaxRange = inf;                    % trusted look-ahead [m from the rear axle]
     det.Detect = @detect;
 
     function prob = detect(rgb)

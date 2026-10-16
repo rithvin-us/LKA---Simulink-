@@ -11,11 +11,15 @@ function det = lka_detector_create(V)
         case {'yolop', 'cnn'}
             sidecar = fullfile(V.DetectorDir, [lower(V.Detector) '.json']);
             cfg = jsondecode(fileread(sidecar));
+            backend = 'auto';
+            if isfield(V, 'OnnxBackend')
+                backend = V.OnnxBackend;
+            end
             switch cfg.type
                 case 'seg'
-                    det = lka_detector_onnx_seg(sidecar, V.UseGpu);
+                    det = lka_detector_onnx_seg(sidecar, V.UseGpu, backend);
                 case 'ufld_v2'
-                    det = lka_detector_ufld(sidecar, V.UseGpu);
+                    det = lka_detector_ufld(sidecar, V.UseGpu, backend);
                 otherwise
                     error('lka:vision:unknownModelType', 'Unknown model type "%s" in %s.', cfg.type, sidecar);
             end

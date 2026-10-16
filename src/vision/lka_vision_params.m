@@ -44,6 +44,7 @@ function V = lka_vision_params(profile)
     V.Detector    = 'yolop';     % 'yolop' | 'cnn' | 'classic'
     V.DetectorDir = '';          % set by lka_build_params (models/perception)
     V.UseGpu      = true;
+    V.OnnxBackend = 'auto';      % 'auto' | 'matlab' (importer add-on, GPU) | 'onnxruntime' (Python, CPU)
 
     % ---------------------------------------------------------- sliding-window search
     V.Search.ProbThreshold = 0.5;

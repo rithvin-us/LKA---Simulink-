@@ -1,27 +1,33 @@
-function det = lka_detector_onnx_seg(sidecarFile, useGpu)
+function det = lka_detector_onnx_seg(sidecarFile, useGpu, backend)
 % LKA_DETECTOR_ONNX_SEG Lane detector from an ONNX segmentation model + JSON sidecar.
 %
 % Syntax:
 %   det = lka_detector_onnx_seg(sidecarFile, useGpu)
+%   det = lka_detector_onnx_seg(sidecarFile, useGpu, backend)   'auto' | 'matlab' | 'onnxruntime'
 %   prob = det.Detect(rgb)        rgb uint8 H x W x 3 -> single H x W lane probability
 %
 % Contract and sidecar fields: models/perception/README.md (type "seg", e.g. YOLOP).
+% Back end: lka_onnx_backend.
 
+    if nargin < 3
+        backend = 'auto';
+    end
     cfg = jsondecode(fileread(sidecarFile));
     onnxFile = fullfile(fileparts(sidecarFile), cfg.onnx);
     if ~isfile(onnxFile)
         error('lka:vision:modelMissing', ['Lane model "%s" not found. Export it to ONNX as ' ...
             'described in models/perception/README.md.'], onnxFile);
     end
-    net = lka_import_onnx_detector(onnxFile);
+    be = lka_onnx_backend(onnxFile, useGpu, backend);
     inSize = cfg.input_size(:)';
     mean3 = reshape(single(cfg.mean), 1, 1, []);
     std3 = reshape(single(cfg.std), 1, 1, []);
-    useGpu = useGpu && canUseGPU();
-    if useGpu
-        net = dlupdate(@gpuArray, net);      % weights to the GPU once, not on every predict
+    det.Name = sprintf('%s [%s]', cfg.name, be.Name);
+    det.Backend = be.Name;
+    det.MaxRange = inf;                    % trusted look-ahead [m from the rear axle]
+    if isfield(cfg, 'max_range_m')
+        det.MaxRange = cfg.max_range_m;
     end
-    det.Name = cfg.name;
     det.Detect = @detect;
 
     function prob = detect(rgb)
@@ -37,11 +43,8 @@ function det = lka_detector_onnx_seg(sidecarFile, useGpu)
             pad = [0 0 inSize];
         end
         x = (single(x) / single(cfg.scale) - mean3) ./ std3;
-        X = dlarray(x, 'SSCB');
-        if useGpu
-            X = gpuArray(X);
-        end
-        Y = lka_onnx_output_hwc(gather(extractdata(predict(net, X))), inSize);
+        outs = be.Predict(x);
+        Y = lka_onnx_output_hwc(outs{1}, inSize);
         switch lower(cfg.output)
             case 'softmax'
                 e = exp(Y - max(Y, [], 3));

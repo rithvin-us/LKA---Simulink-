@@ -70,7 +70,7 @@ function testYolopImportMatchesOnnxRuntime(testCase)
 end
 
 function testYolopDetectorRuns(testCase)
-    testCase.assumeEqual(exist('importNetworkFromONNX', 'file'), 2, 'ONNX importer add-on not installed');
+    testCase.assumeTrue(lka_onnx_runtime_available(), 'no ONNX back end (importer add-on or Python onnxruntime)');
     V = testCase.TestData.V; V.Detector = 'yolop';
     det = lka_detector_create(V);
     img = lka_render_lane_scene(testCase.TestData.cam, lka_default_scene());
@@ -80,6 +80,21 @@ function testYolopDetectorRuns(testCase)
     testCase.verifyGreaterThanOrEqual(min(prob(:)), 0);
     testCase.verifyLessThanOrEqual(max(prob(:)), 1);
     fprintf('[vision] YOLOP %.1f ms/frame (GPU %d)\n', ms, V.UseGpu && canUseGPU());
+end
+
+function testOnnxRuntimeBackendMatchesReference(testCase)
+    % MATLAB -> Python (in-process onnxruntime) must give the same tensors as the
+    % stand-alone reference: checks the H x W x C -> NCHW marshaling.
+    testCase.assumeTrue(lka_onnx_runtime_available('onnxruntime'), 'Python onnxruntime not available');
+    onnx = fullfile(testCase.TestData.root, 'models', 'perception', 'yolop_ll_384x640.onnx');
+    rng(9);
+    x = single(0.5 * randn(384, 640, 3));
+    prefix = onnxReference(testCase, onnx, x);
+    be = lka_onnx_backend(onnx, false, 'onnxruntime');
+    outs = be.Predict(x);
+    testCase.verifyEqual(be.Name, 'onnxruntime');
+    testCase.verifyEqual(size(outs{1}), [1 2 384 640]);
+    testCase.verifyLessThan(max(abs(outs{1}(:) - reshape(readOnnxOutput(prefix, 1), [], 1))), 1e-4);
 end
 
 % ------------------------------------------------------------------ UFLDv2 (team CNN)
@@ -145,7 +160,7 @@ function testUfldImportMatchesOnnxRuntime(testCase)
 end
 
 function testUfldDetectorRuns(testCase)
-    testCase.assumeEqual(exist('importNetworkFromONNX', 'file'), 2, 'ONNX importer add-on not installed');
+    testCase.assumeTrue(lka_onnx_runtime_available(), 'no ONNX back end (importer add-on or Python onnxruntime)');
     V = testCase.TestData.V; V.Detector = 'cnn';
     testCase.assumeTrue(isfile(fullfile(V.DetectorDir, 'team_cnn.onnx')), 'team UFLDv2 ONNX not delivered yet');
     det = lka_detector_create(V);
@@ -154,6 +169,19 @@ function testUfldDetectorRuns(testCase)
     t0 = tic; prob = det.Detect(img); ms = 1000 * toc(t0);
     testCase.verifySize(prob, [720 1280]);
     fprintf('[vision] UFLDv2 %.1f ms/frame (GPU %d)\n', ms, V.UseGpu && canUseGPU());
+end
+
+function testDetectorMaxRange(testCase)
+    % Each detector says how far ahead its lane points can be trusted; the team UFLDv2
+    % bends the far points of tight curves the wrong way, so its fit stops at 18 m.
+    V = testCase.TestData.V; V.Detector = 'classic';
+    testCase.verifyEqual(lka_detector_create(V).MaxRange, inf);
+    cfg = jsondecode(fileread(fullfile(V.DetectorDir, 'cnn.json')));
+    testCase.verifyEqual(cfg.max_range_m, 18);
+    testCase.assumeTrue(lka_onnx_runtime_available() && isfile(fullfile(V.DetectorDir, 'team_cnn.onnx')), ...
+        'team UFLDv2 not available');
+    V.Detector = 'cnn';
+    testCase.verifyEqual(lka_detector_create(V).MaxRange, 18);
 end
 
 % ------------------------------------------------------------------ helpers

@@ -41,11 +41,24 @@ function T = run_detector_benchmark(options)
 
     T = lka_detector_benchmark(options.Dataset, options.Detectors, V);
     if options.ClosedLoop
-        r = run_lka_vision(Scenarios={'S1_Nominal'}, Detectors=options.Detectors, Video=true);
-        k = arrayfun(@(x) x.kpi, r);
-        T.InLaneRatio = [k.InLaneRatio]';
-        T.MaxLatOffset_m = [k.MaxLatOffset_m]';
-        T.MinWheelMargin_m = [k.MinWheelMargin_m]';
+        n = numel(options.Detectors);
+        T.InLaneRatio = nan(n, 1);
+        T.MaxLatOffset_m = nan(n, 1);
+        T.MinWheelMargin_m = nan(n, 1);
+        T.ClosedLoop = repmat("completed", n, 1);
+        for d = 1:n
+            try
+                r = run_lka_vision(Scenarios={'S1_Nominal'}, Detectors=options.Detectors(d), Video=true);
+                T.InLaneRatio(d) = r.kpi.InLaneRatio;
+                T.MaxLatOffset_m(d) = r.kpi.MaxLatOffset_m;
+                T.MinWheelMargin_m(d) = r.kpi.MinWheelMargin_m;
+            catch ME
+                % Unreal stops when the ego leaves the road mesh (ground following fails):
+                % the detector lost the lane and the car ran off the track.
+                T.ClosedLoop(d) = "stopped: vehicle left the road";
+                fprintf('\n[benchmark] %s closed loop stopped: %s\n', options.Detectors{d}, strtok(ME.message, newline));
+            end
+        end
     end
 
     if ~isfolder(options.OutDir), mkdir(options.OutDir); end

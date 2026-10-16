@@ -2,21 +2,42 @@
   "type": "ufld_v2",
   "name": "Team CNN: UFLDv2 ResNet-18, TuSimple (Colab UFLDv2_Lane_Detection_Colab.ipynb, model_best.pth)",
   "onnx": "team_cnn.onnx",
-  "input_size": [320, 800],
+  "input_size": [
+    320,
+    800
+  ],
   "crop_ratio": 0.8,
   "channel_order": "RGB",
   "scale": 255,
-  "mean": [0.485, 0.456, 0.406],
-  "std": [0.229, 0.224, 0.225],
+  "mean": [
+    0.485,
+    0.456,
+    0.406
+  ],
+  "std": [
+    0.229,
+    0.224,
+    0.225
+  ],
   "num_grid_row": 100,
   "num_cls_row": 56,
   "num_grid_col": 100,
   "num_cls_col": 41,
   "num_lanes": 4,
-  "row_lanes": [2, 3],
-  "col_lanes": [1, 4],
-  "row_anchor_px": [160, 710],
+  "row_lanes": [
+    2,
+    3
+  ],
+  "col_lanes": [
+    1,
+    4
+  ],
+  "row_anchor_px": [
+    160,
+    710
+  ],
   "anchor_image_height": 720,
   "local_width": 1,
-  "line_width_px": 5
+  "line_width_px": 5,
+  "max_range_m": 18
 }
